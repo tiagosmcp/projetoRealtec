@@ -1,11 +1,12 @@
 import 'dotenv/config';
 import fs from 'node:fs';
 import path from 'node:path';
-import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenAI, ApiError } from '@google/genai';
 import { chromium } from 'playwright';
 import { definicoes, executarFerramenta, mensagemDoTopo, ENDERECO_SITE } from './ferramentas.js';
 
-const MODELO = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5';
+// Gemini no plano gratuito do Google AI Studio
+const MODELO = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
 const LIMITE_DE_PASSOS = 40;
 export const PASTA_REGISTROS = path.join(import.meta.dirname, '..', 'registros');
 
@@ -22,20 +23,40 @@ Regras do sistema (use para prever o resultado esperado):
 - Se o comando não informar o identificador do pedido, use o identificador sugerido na tela de novo pedido.
 
 Como trabalhar:
-1. ANTES de qualquer ação, escreva uma linha começando com "Resultado esperado:" dizendo o que deve acontecer (inclusive se for uma rejeição).
-2. Use ver_tela para ler a página e descobrir as referências [ref]. Depois de navegar, chame ver_tela de novo.
-3. Depois de cada ação importante, leia a mensagem no topo.
-4. Antes de finalizar, confira o resultado numa tela de consulta (lista de produtos para estoque e preços, detalhe do pedido para itens e total).
-5. Termine SEMPRE com a ferramenta finalizar.
+1. ANTES de alterar qualquer dado, escreva uma linha começando com "Resultado esperado:" com o resultado FINAL da tarefa. Para prever, aplique as regras acima aos dados que aparecem na tela (estoque atual, códigos e pedidos que já existem). Se uma regra vai rejeitar a operação, o resultado esperado é a rejeição.
+2. navegar e clicar já devolvem a tela nova com as referências [ref]. Use ver_tela só se precisar ler a tela de novo.
+3. ECONOMIZE PASSOS: na mesma resposta, peça várias ferramentas em sequência (ex.: preencher todos os campos de um formulário, selecionar e depois clicar no botão). Elas rodam na ordem. Depois de um clicar ou navegar o lote termina, porque a tela muda; o que vier depois no mesmo lote NÃO é executado.
+4. Depois de cada clique, leia a mensagem no topo da tela devolvida.
+5. Antes de finalizar, confira o resultado numa tela de consulta (lista de produtos para estoque e preços, detalhe do pedido para itens e total).
+6. Termine SEMPRE com a ferramenta finalizar.
+
+Faça SOMENTE o que o comando pede:
+- NUNCA faça operações extras para contornar uma rejeição (ex.: ajustar estoque, editar produto, usar outro código ou outro pedido).
+- Se o sistema rejeitar uma operação, não tente de novo: confira a tela de consulta e finalize relatando a rejeição.
 
 Regras de honestidade:
 - NUNCA diga que deu certo se apareceu uma mensagem de erro que você não esperava.
-- Uma rejeição que era esperada (ex.: "Tente cancelar novamente") conta como "CONFORME O ESPERADO".
+- A conclusão compara o resultado observado com o SEU resultado esperado (não com o pedido do usuário). Se você previu uma rejeição e ela aconteceu com o motivo certo, é "CONFORME O ESPERADO".
 - Em resultado_observado, escreva exatamente o que a tela mostrou (mensagens, valores, estoques).`;
 
 // Executa um comando em português usando a página do navegador. Devolve o registro da execução.
 export async function executarAgente(pagina, comando) {
-  const cliente = new Anthropic(); // lê ANTHROPIC_API_KEY do ambiente
+  if (!process.env.GEMINI_API_KEY) {
+    throw new Error('Configure a GEMINI_API_KEY no arquivo .env (veja o README).');
+  }
+
+  // Se o limite do plano gratuito for atingido (erro 429), o SDK espera e tenta de novo
+  const ia = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY, httpOptions: { retryOptions: { attempts: 5 } } });
+
+  // O chat guarda o histórico da conversa sozinho
+  const chat = ia.chats.create({
+    model: MODELO,
+    config: {
+      systemInstruction: INSTRUCOES,
+      tools: [{ functionDeclarations: definicoes }],
+    },
+  });
+
   const registro = {
     comando,
     inicio: new Date(),
@@ -45,47 +66,43 @@ export async function executarAgente(pagina, comando) {
     conclusao: '',
     mensagensVistas: [],
   };
-  const mensagens = [{ role: 'user', content: comando }];
+  let mensagem = comando; // o que será enviado ao modelo no próximo passo
 
   try {
     for (let passo = 1; passo <= LIMITE_DE_PASSOS && !registro.conclusao; passo++) {
-      const resposta = await cliente.messages.create({
-        model: MODELO,
-        max_tokens: 4096,
-        system: INSTRUCOES,
-        tools: definicoes,
-        messages: mensagens,
-        cache_control: { type: 'ephemeral' }, // reaproveita o histórico entre os passos (mais barato)
-      });
-      // Guarda a resposta inteira no histórico (inclusive blocos de raciocínio, se houver)
-      mensagens.push({ role: 'assistant', content: resposta.content });
-
-      if (resposta.stop_reason === 'refusal') {
-        registro.conclusao = 'DIFERENTE DO ESPERADO: o modelo recusou a tarefa.';
-        break;
-      }
+      const resposta = await chat.sendMessage({ message: mensagem });
+      const partes = resposta.candidates?.[0]?.content?.parts ?? [];
 
       // Textos do modelo: o primeiro com "Resultado esperado" vira o resultado esperado
-      for (const bloco of resposta.content) {
-        if (bloco.type !== 'text' || !bloco.text.trim()) continue;
-        registro.acoes.push(`Agente pensou: ${bloco.text.trim()}`);
-        if (!registro.esperado && bloco.text.includes('Resultado esperado')) {
-          registro.esperado = bloco.text.split('Resultado esperado:')[1]?.trim() || bloco.text.trim();
+      for (const parte of partes) {
+        if (!parte.text?.trim() || parte.thought) continue;
+        registro.acoes.push(`Agente pensou: ${parte.text.trim()}`);
+        if (!registro.esperado && parte.text.includes('Resultado esperado')) {
+          registro.esperado = parte.text.split('Resultado esperado:')[1]?.trim() || parte.text.trim();
         }
       }
 
-      const chamadas = resposta.content.filter((bloco) => bloco.type === 'tool_use');
+      const chamadas = resposta.functionCalls ?? [];
       if (chamadas.length === 0) {
-        mensagens.push({ role: 'user', content: 'Continue a tarefa e termine com a ferramenta finalizar.' });
+        mensagem = 'Continue a tarefa e termine com a ferramenta finalizar.';
         continue;
       }
 
-      const resultados = [];
+      // Executa as ferramentas pedidas, na ordem, e devolve os resultados ao modelo no próximo passo
+      mensagem = [];
+      let loteEncerrado = false;
       for (const chamada of chamadas) {
-        const textoResultado = await executarUmaFerramenta(pagina, chamada, passo, registro);
-        resultados.push({ type: 'tool_result', tool_use_id: chamada.id, ...textoResultado });
+        let resultado;
+        if (loteEncerrado) {
+          // Depois de clicar/navegar (ou de uma falha) a tela mudou e as referências antigas não valem mais
+          resultado = 'Não executada: a tela mudou antes desta ação. Use as referências da tela nova.';
+        } else {
+          resultado = await executarUmaFerramenta(pagina, chamada, passo, registro);
+          loteEncerrado = ['clicar', 'navegar'].includes(chamada.name) || resultado.startsWith('Falha');
+        }
+        mensagem.push({ functionResponse: { id: chamada.id, name: chamada.name, response: { resultado } } });
       }
-      mensagens.push({ role: 'user', content: resultados });
+      registro.requisicoes = passo;
     }
 
     if (!registro.conclusao) {
@@ -93,6 +110,8 @@ export async function executarAgente(pagina, comando) {
     }
   } catch (erro) {
     registro.conclusao = 'DIFERENTE DO ESPERADO: erro na execução do agente: ' + erro.message;
+    // Erro da API do Gemini (chave inválida, limite diário...): não adianta continuar o roteiro
+    registro.erroNaApi = erro instanceof ApiError;
   }
 
   if (!registro.esperado) registro.esperado = '(o agente não informou)';
@@ -100,29 +119,32 @@ export async function executarAgente(pagina, comando) {
   return registro;
 }
 
-// Executa uma chamada de ferramenta, anota no registro e devolve o tool_result
+// Executa uma chamada de ferramenta, anota no registro e devolve o texto do resultado
 async function executarUmaFerramenta(pagina, chamada, passo, registro) {
+  const entrada = chamada.args ?? {};
+
   if (chamada.name === 'finalizar') {
-    registro.observado = chamada.input.resultado_observado;
-    registro.conclusao = chamada.input.conclusao;
+    registro.observado = entrada.resultado_observado;
+    registro.conclusao = entrada.conclusao;
     registro.acoes.push(`Passo ${passo}: finalizar`);
-    return { content: 'Tarefa encerrada.' };
+    return 'Tarefa encerrada.';
   }
 
   try {
-    const texto = await executarFerramenta(pagina, chamada.name, chamada.input);
-    const resumo = chamada.name === 'ver_tela' ? `tela lida (${texto.split('\n')[0]})` : texto;
-    registro.acoes.push(`Passo ${passo}: ${chamada.name} ${JSON.stringify(chamada.input)} → ${resumo}`);
+    const texto = await executarFerramenta(pagina, chamada.name, entrada);
+    // Para o registro, um resumo curto: a primeira linha do resultado e a mensagem do topo
+    const mensagem = await mensagemDoTopo(pagina);
+    const resumo = chamada.name === 'preencher' || chamada.name === 'selecionar' ? texto : `${texto.split('\n')[0]} ${mensagem}`;
+    registro.acoes.push(`Passo ${passo}: ${chamada.name} ${JSON.stringify(entrada)} → ${resumo}`);
 
     // Guarda as mensagens do topo para o registro mostrar o que realmente apareceu
-    const mensagem = await mensagemDoTopo(pagina);
     if (!registro.mensagensVistas.includes(mensagem) && !mensagem.startsWith('Nenhuma')) {
       registro.mensagensVistas.push(mensagem);
     }
-    return { content: texto };
+    return texto;
   } catch (erro) {
-    registro.acoes.push(`Passo ${passo}: ${chamada.name} ${JSON.stringify(chamada.input)} → FALHOU: ${erro.message}`);
-    return { content: 'Falha: ' + erro.message.split('\n')[0] + ' (use ver_tela para atualizar as referências)', is_error: true };
+    registro.acoes.push(`Passo ${passo}: ${chamada.name} ${JSON.stringify(entrada)} → FALHOU: ${erro.message}`);
+    return 'Falha: ' + erro.message.split('\n')[0] + ' (use ver_tela para atualizar as referências)';
   }
 }
 
@@ -137,6 +159,7 @@ export function salvarRegistro(registro, nome = 'agente') {
     ``,
     `- **Data:** ${registro.inicio.toLocaleString('pt-BR')}`,
     `- **Modelo:** ${MODELO}`,
+    `- **Requisições à IA:** ${registro.requisicoes ?? 0}`,
     ``,
     `## Comando`,
     registro.comando,

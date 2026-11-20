@@ -36,6 +36,11 @@ async function principal() {
     console.log('  ' + registro.observado);
 
     linhas.push(`| ${i + 1} | ${cenario.comando} | ${cenario.esperado} | ${limpar(registro.observado)} | ${conforme ? 'Conforme' : '**Diferente**'} | ${arquivo} |`);
+
+    if (registro.erroNaApi) {
+      console.log('\nErro na API do Gemini. Roteiro interrompido:\n' + registro.conclusao);
+      break;
+    }
   }
 
   await navegador.close();

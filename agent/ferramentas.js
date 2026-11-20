@@ -1,19 +1,18 @@
-// Ferramentas que o Claude pode usar. Todas agem SÓ pela tela, com Playwright.
+// Ferramentas que a IA (Gemini) pode usar. Todas agem SÓ pela tela, com Playwright.
 // O agente não acessa o banco, não chama a API e não importa nada do server/.
 
 export const ENDERECO_SITE = 'http://localhost:5173';
 
-// Descrição das ferramentas no formato que a API do Claude espera
+// Descrição das ferramentas no formato que a API do Gemini espera
 export const definicoes = [
   {
     name: 'ver_tela',
-    description: 'Lê a tela atual: URL, mensagem do topo, textos, tabelas e elementos interativos (campos, selects, botões e links), cada um com um número de referência [ref]. Chame de novo depois de navegar, porque as referências mudam.',
-    input_schema: { type: 'object', properties: {} },
+    description: 'Lê a tela atual: URL, mensagem do topo, textos, tabelas e elementos interativos (campos, selects, botões e links), cada um com um número de referência [ref].',
   },
   {
     name: 'navegar',
-    description: 'Abre uma página do sistema pelo caminho. Ex.: "/produtos", "/pedidos" ou "/pedidos/001".',
-    input_schema: {
+    description: 'Abre uma página do sistema pelo caminho e devolve a tela nova. Ex.: "/produtos", "/pedidos" ou "/pedidos/001".',
+    parametersJsonSchema: {
       type: 'object',
       properties: { caminho: { type: 'string' } },
       required: ['caminho'],
@@ -21,8 +20,8 @@ export const definicoes = [
   },
   {
     name: 'clicar',
-    description: 'Clica no botão ou link com a referência informada (veja ver_tela).',
-    input_schema: {
+    description: 'Clica no botão ou link com a referência informada e devolve a tela nova (com novas referências).',
+    parametersJsonSchema: {
       type: 'object',
       properties: { ref: { type: 'integer' } },
       required: ['ref'],
@@ -31,7 +30,7 @@ export const definicoes = [
   {
     name: 'preencher',
     description: 'Apaga o conteúdo do campo com a referência informada e digita o valor.',
-    input_schema: {
+    parametersJsonSchema: {
       type: 'object',
       properties: { ref: { type: 'integer' }, valor: { type: 'string' } },
       required: ['ref', 'valor'],
@@ -40,7 +39,7 @@ export const definicoes = [
   {
     name: 'selecionar',
     description: 'Escolhe uma opção de um select pelo texto da opção. Ex.: "103 - Monitor".',
-    input_schema: {
+    parametersJsonSchema: {
       type: 'object',
       properties: { ref: { type: 'integer' }, opcao: { type: 'string' } },
       required: ['ref', 'opcao'],
@@ -49,7 +48,7 @@ export const definicoes = [
   {
     name: 'finalizar',
     description: 'Encerra a tarefa. Use só depois de conferir o resultado na tela de consulta.',
-    input_schema: {
+    parametersJsonSchema: {
       type: 'object',
       properties: {
         resultado_observado: { type: 'string', description: 'O que apareceu de fato na tela, com valores e mensagens.' },
@@ -60,7 +59,7 @@ export const definicoes = [
   },
 ];
 
-// Executa uma ferramenta e devolve um texto para o Claude ler
+// Executa uma ferramenta e devolve um texto para a IA ler
 export async function executarFerramenta(pagina, nome, entrada) {
   if (nome === 'ver_tela') {
     return await lerTela(pagina);
@@ -68,14 +67,13 @@ export async function executarFerramenta(pagina, nome, entrada) {
 
   if (nome === 'navegar') {
     await pagina.goto(ENDERECO_SITE + entrada.caminho);
-    await esperarTela(pagina);
-    return `Página ${entrada.caminho} aberta. Use ver_tela para ler.`;
+    // Já devolve a tela nova, para a IA não precisar pedir ver_tela (economiza requisições)
+    return `Página ${entrada.caminho} aberta.\n` + (await lerTela(pagina));
   }
 
   if (nome === 'clicar') {
     await elemento(pagina, entrada.ref).click();
-    await esperarTela(pagina);
-    return `Clique feito. ${await mensagemDoTopo(pagina)}`;
+    return 'Clique feito. Tela depois do clique:\n' + (await lerTela(pagina));
   }
 
   if (nome === 'preencher') {
@@ -85,7 +83,7 @@ export async function executarFerramenta(pagina, nome, entrada) {
 
   if (nome === 'selecionar') {
     const select = elemento(pagina, entrada.ref);
-    // Procura a opção cujo texto contém o que o Claude pediu (ex.: "Monitor" acha "103 - Monitor")
+    // Procura a opção cujo texto contém o que a IA pediu (ex.: "Monitor" acha "103 - Monitor")
     const opcoes = await select.locator('option').allInnerTexts();
     const opcao = opcoes.find((texto) => texto.trim() === entrada.opcao.trim())
       || opcoes.find((texto) => texto.toLowerCase().includes(entrada.opcao.toLowerCase()));
