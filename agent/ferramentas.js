@@ -1,0 +1,190 @@
+// Ferramentas que o Claude pode usar. Todas agem SÓ pela tela, com Playwright.
+// O agente não acessa o banco, não chama a API e não importa nada do server/.
+
+export const ENDERECO_SITE = 'http://localhost:5173';
+
+// Descrição das ferramentas no formato que a API do Claude espera
+export const definicoes = [
+  {
+    name: 'ver_tela',
+    description: 'Lê a tela atual: URL, mensagem do topo, textos, tabelas e elementos interativos (campos, selects, botões e links), cada um com um número de referência [ref]. Chame de novo depois de navegar, porque as referências mudam.',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'navegar',
+    description: 'Abre uma página do sistema pelo caminho. Ex.: "/produtos", "/pedidos" ou "/pedidos/001".',
+    input_schema: {
+      type: 'object',
+      properties: { caminho: { type: 'string' } },
+      required: ['caminho'],
+    },
+  },
+  {
+    name: 'clicar',
+    description: 'Clica no botão ou link com a referência informada (veja ver_tela).',
+    input_schema: {
+      type: 'object',
+      properties: { ref: { type: 'integer' } },
+      required: ['ref'],
+    },
+  },
+  {
+    name: 'preencher',
+    description: 'Apaga o conteúdo do campo com a referência informada e digita o valor.',
+    input_schema: {
+      type: 'object',
+      properties: { ref: { type: 'integer' }, valor: { type: 'string' } },
+      required: ['ref', 'valor'],
+    },
+  },
+  {
+    name: 'selecionar',
+    description: 'Escolhe uma opção de um select pelo texto da opção. Ex.: "103 - Monitor".',
+    input_schema: {
+      type: 'object',
+      properties: { ref: { type: 'integer' }, opcao: { type: 'string' } },
+      required: ['ref', 'opcao'],
+    },
+  },
+  {
+    name: 'finalizar',
+    description: 'Encerra a tarefa. Use só depois de conferir o resultado na tela de consulta.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        resultado_observado: { type: 'string', description: 'O que apareceu de fato na tela, com valores e mensagens.' },
+        conclusao: { type: 'string', description: 'Começa com "CONFORME O ESPERADO" ou "DIFERENTE DO ESPERADO", seguido da explicação.' },
+      },
+      required: ['resultado_observado', 'conclusao'],
+    },
+  },
+];
+
+// Executa uma ferramenta e devolve um texto para o Claude ler
+export async function executarFerramenta(pagina, nome, entrada) {
+  if (nome === 'ver_tela') {
+    return await lerTela(pagina);
+  }
+
+  if (nome === 'navegar') {
+    await pagina.goto(ENDERECO_SITE + entrada.caminho);
+    await esperarTela(pagina);
+    return `Página ${entrada.caminho} aberta. Use ver_tela para ler.`;
+  }
+
+  if (nome === 'clicar') {
+    await elemento(pagina, entrada.ref).click();
+    await esperarTela(pagina);
+    return `Clique feito. ${await mensagemDoTopo(pagina)}`;
+  }
+
+  if (nome === 'preencher') {
+    await elemento(pagina, entrada.ref).fill(String(entrada.valor));
+    return `Campo [${entrada.ref}] preenchido com "${entrada.valor}".`;
+  }
+
+  if (nome === 'selecionar') {
+    const select = elemento(pagina, entrada.ref);
+    // Procura a opção cujo texto contém o que o Claude pediu (ex.: "Monitor" acha "103 - Monitor")
+    const opcoes = await select.locator('option').allInnerTexts();
+    const opcao = opcoes.find((texto) => texto.trim() === entrada.opcao.trim())
+      || opcoes.find((texto) => texto.toLowerCase().includes(entrada.opcao.toLowerCase()));
+    if (!opcao) {
+      throw new Error(`Opção "${entrada.opcao}" não encontrada. Opções: ${opcoes.join('; ')}`);
+    }
+    await select.selectOption({ label: opcao });
+    return `Opção "${opcao}" selecionada no select [${entrada.ref}].`;
+  }
+
+  throw new Error(`Ferramenta desconhecida: ${nome}`);
+}
+
+// Localiza o elemento marcado pela última chamada de ver_tela
+function elemento(pagina, ref) {
+  return pagina.locator(`[data-ref="${ref}"]`);
+}
+
+// Espera a página carregar e o React buscar os dados
+async function esperarTela(pagina) {
+  await pagina.waitForLoadState('networkidle');
+  await pagina.waitForTimeout(300);
+}
+
+export async function mensagemDoTopo(pagina) {
+  const mensagem = pagina.locator('.mensagem');
+  if ((await mensagem.count()) === 0) return 'Nenhuma mensagem no topo.';
+  return 'Mensagem no topo: ' + (await mensagem.first().innerText());
+}
+
+// Monta o texto da tela. Roda dentro do navegador (page.evaluate).
+async function lerTela(pagina) {
+  await esperarTela(pagina);
+  return await pagina.evaluate(() => {
+    const linhas = [];
+    linhas.push('URL: ' + location.pathname);
+
+    const mensagem = document.querySelector('.mensagem');
+    linhas.push('Mensagem no topo: ' + (mensagem ? mensagem.innerText : 'nenhuma'));
+
+    const titulo = document.querySelector('main h2');
+    if (titulo) linhas.push('Título: ' + titulo.innerText);
+
+    // Parágrafos de texto (ex.: situação e total do pedido)
+    for (const p of document.querySelectorAll('main > p')) {
+      linhas.push('Texto: ' + p.innerText);
+    }
+
+    // Tabelas, linha por linha (só células sem botões/campos)
+    document.querySelectorAll('main table').forEach((tabela, i) => {
+      linhas.push(`Tabela ${i + 1}:`);
+      for (const tr of tabela.querySelectorAll('tr')) {
+        const celulas = [...tr.cells]
+          .filter((c) => !c.querySelector('input, button, select'))
+          .map((c) => c.innerText.trim());
+        linhas.push('  ' + celulas.join(' | '));
+      }
+    });
+
+    // Elementos interativos com número de referência
+    linhas.push('Elementos interativos:');
+    let numero = 0;
+    for (const el of document.querySelectorAll('nav a, main a, main input, main select, main button')) {
+      numero++;
+      el.setAttribute('data-ref', numero);
+      const contexto = descreverContexto(el);
+
+      if (el.tagName === 'A') {
+        linhas.push(`  [${numero}] link "${el.innerText}"`);
+      } else if (el.tagName === 'BUTTON') {
+        linhas.push(`  [${numero}] botão "${el.innerText}"${contexto}`);
+      } else if (el.tagName === 'SELECT') {
+        const opcoes = [...el.options].map((o) => o.text).join('; ');
+        const escolhida = el.options[el.selectedIndex]?.text;
+        linhas.push(`  [${numero}] select "${rotulo(el)}"${contexto} selecionado="${escolhida}" opções: ${opcoes}`);
+      } else {
+        linhas.push(`  [${numero}] campo "${rotulo(el)}"${contexto} valor="${el.value}"`);
+      }
+    }
+    return linhas.join('\n');
+
+    // Texto do <label> que envolve o campo (sem o texto das opções do select)
+    function rotulo(el) {
+      const label = el.closest('label');
+      if (!label) return '';
+      return [...label.childNodes]
+        .filter((n) => n.nodeType === Node.TEXT_NODE)
+        .map((n) => n.textContent)
+        .join('')
+        .trim();
+    }
+
+    // Diz em qual formulário ou linha de tabela o elemento está
+    function descreverContexto(el) {
+      const linha = el.closest('tr');
+      if (linha) return ` (na linha do item: ${linha.cells[0].innerText})`;
+      const titulo = el.closest('form')?.querySelector('h3');
+      if (titulo) return ` (formulário: ${titulo.innerText})`;
+      return '';
+    }
+  });
+}
