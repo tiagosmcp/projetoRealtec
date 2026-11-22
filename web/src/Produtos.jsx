@@ -58,7 +58,7 @@ export default function Produtos({ avisar }) {
     evento.preventDefault();
     try {
       if (!codigoEdicao) throw new Error('Escolha o produto que será editado');
-      const produto = await api('/produtos/' + codigoEdicao, 'PUT', { descricao: descricaoEdicao, preco: precoEdicao });
+      const produto = await api('/produtos/' + encodeURIComponent(codigoEdicao), 'PUT', { descricao: descricaoEdicao, preco: precoEdicao });
       avisar('sucesso', `Produto ${produto.codigo} atualizado: ${produto.descricao}, ${formatarDinheiro(produto.preco)}`);
       carregar();
     } catch (erro) {
@@ -70,7 +70,7 @@ export default function Produtos({ avisar }) {
     evento.preventDefault();
     try {
       if (!codigoEstoque) throw new Error('Escolha o produto para ajustar o estoque');
-      const produto = await api(`/produtos/${codigoEstoque}/estoque`, 'POST', { quantidade: ajuste });
+      const produto = await api(`/produtos/${encodeURIComponent(codigoEstoque)}/estoque`, 'POST', { quantidade: ajuste });
       avisar('sucesso', `Estoque de ${produto.descricao} agora é ${produto.estoque}`);
       setAjuste('');
       carregar();

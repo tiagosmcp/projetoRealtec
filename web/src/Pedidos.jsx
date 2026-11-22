@@ -27,7 +27,7 @@ export default function Pedidos({ avisar }) {
     try {
       const pedido = await api('/pedidos', 'POST', { identificador });
       avisar('sucesso', `Pedido ${pedido.identificador} criado em rascunho`);
-      navegar('/pedidos/' + pedido.identificador);
+      navegar('/pedidos/' + encodeURIComponent(pedido.identificador));
     } catch (erro) {
       avisar('erro', erro.message);
     }
@@ -53,7 +53,7 @@ export default function Pedidos({ avisar }) {
               <td>{p.identificador}</td>
               <td>{p.situacao}</td>
               <td>{formatarDinheiro(p.total)}</td>
-              <td><Link to={'/pedidos/' + p.identificador}>Ver pedido {p.identificador}</Link></td>
+              <td><Link to={'/pedidos/' + encodeURIComponent(p.identificador)}>Ver pedido {p.identificador}</Link></td>
             </tr>
           ))}
         </tbody>

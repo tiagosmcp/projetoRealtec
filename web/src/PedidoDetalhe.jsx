@@ -4,6 +4,7 @@ import { api, formatarDinheiro } from './util.js';
 
 export default function PedidoDetalhe({ avisar }) {
   const { id } = useParams();
+  const caminho = '/pedidos/' + encodeURIComponent(id); // o identificador é digitado e pode ter "/"
   const [pedido, setPedido] = useState(null);
   const [produtos, setProdutos] = useState([]);
 
@@ -13,7 +14,7 @@ export default function PedidoDetalhe({ avisar }) {
 
   async function carregar() {
     try {
-      setPedido(await api('/pedidos/' + id));
+      setPedido(await api(caminho));
       setProdutos(await api('/produtos'));
     } catch (erro) {
       avisar('erro', erro.message);
@@ -36,7 +37,7 @@ export default function PedidoDetalhe({ avisar }) {
 
   function adicionarItem(evento) {
     evento.preventDefault();
-    executar(`/pedidos/${id}/itens`, 'POST', { produto, quantidade }, 'Item adicionado ao pedido ' + id);
+    executar(`${caminho}/itens`, 'POST', { produto, quantidade }, 'Item adicionado ao pedido ' + id);
   }
 
   if (!pedido) {
@@ -60,7 +61,7 @@ export default function PedidoDetalhe({ avisar }) {
         </thead>
         <tbody>
           {pedido.itens.map((item) => (
-            <LinhaDoItem key={item.id} item={item} emRascunho={emRascunho} pedidoId={id} executar={executar} />
+            <LinhaDoItem key={item.id} item={item} emRascunho={emRascunho} caminhoDoPedido={caminho} executar={executar} />
           ))}
         </tbody>
       </table>
@@ -85,12 +86,12 @@ export default function PedidoDetalhe({ avisar }) {
 
       <div className="acoes">
         {emRascunho && (
-          <button onClick={() => executar(`/pedidos/${id}/confirmar`, 'POST', null, `Pedido ${id} confirmado`)}>
+          <button onClick={() => executar(`${caminho}/confirmar`, 'POST', null, `Pedido ${id} confirmado`)}>
             Confirmar pedido
           </button>
         )}
         {!emRascunho && (
-          <button onClick={() => executar(`/pedidos/${id}/cancelar`, 'POST', null, `Pedido ${id} cancelado`)}>
+          <button onClick={() => executar(`${caminho}/cancelar`, 'POST', null, `Pedido ${id} cancelado`)}>
             Cancelar pedido
           </button>
         )}
@@ -101,9 +102,9 @@ export default function PedidoDetalhe({ avisar }) {
 }
 
 // Uma linha da tabela de itens. Em rascunho, permite alterar a quantidade ou remover.
-function LinhaDoItem({ item, emRascunho, pedidoId, executar }) {
+function LinhaDoItem({ item, emRascunho, caminhoDoPedido, executar }) {
   const [novaQuantidade, setNovaQuantidade] = useState(String(item.quantidade));
-  const caminho = `/pedidos/${pedidoId}/itens/${item.id}`;
+  const caminho = `${caminhoDoPedido}/itens/${item.id}`;
 
   return (
     <tr>

@@ -64,6 +64,21 @@ describe('regras', () => {
       .toThrow('Já existe um produto com o código 101');
   });
 
+  it('lê o preço nos formatos aceitos e rejeita os inválidos', () => {
+    expect(regras.paraCentavos('25,00')).toBe(2500);
+    expect(regras.paraCentavos('25.00')).toBe(2500);
+    expect(regras.paraCentavos('R$ 1.770,00')).toBe(177000);
+    expect(regras.paraCentavos('1.770')).toBe(177000);
+    for (const invalido of ['0', '-5', '0,001', 'Infinity', '']) {
+      expect(() => regras.paraCentavos(invalido)).toThrow('Preço');
+    }
+  });
+
+  it('rejeita estoque inicial vazio', () => {
+    expect(() => regras.cadastrarProduto(db, { codigo: '200', descricao: 'Cabo', preco: '10', estoque: '' }))
+      .toThrow('Informe o estoque inicial');
+  });
+
   it('rejeita quantidade zero', () => {
     regras.criarPedido(db, '001');
     expect(() => regras.adicionarItem(db, '001', '101', 0)).toThrow('Quantidade deve ser maior que zero');

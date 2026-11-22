@@ -7,14 +7,15 @@
 // Converte "25,00", "25.00", "R$ 1.770,00" ou 25 para centavos (2500).
 export function paraCentavos(valor) {
   let texto = String(valor ?? '').replace('R$', '').trim();
-  if (texto.includes(',')) {
-    // Formato brasileiro: o ponto é separador de milhar e a vírgula é decimal
-    texto = texto.replaceAll('.', '').replace(',', '.');
-  }
-  const numero = Number(texto);
-  if (texto === '' || Number.isNaN(numero)) {
+  const comMilhar = /^-?[1-9]\d{0,2}(\.\d{3})+(,\d{1,2})?$/.test(texto); // 1.770 ou 1.770,00
+  const semMilhar = /^-?\d+([.,]\d{1,2})?$/.test(texto); // 25 ou 25,00 ou 25.00
+  if (!comMilhar && !semMilhar) {
     throw new Error('Preço inválido. Use o formato 25,00');
   }
+  if (comMilhar) {
+    texto = texto.replaceAll('.', '');
+  }
+  const numero = Number(texto.replace(',', '.'));
   if (numero <= 0) {
     throw new Error('Preço deve ser maior que zero');
   }
@@ -58,7 +59,7 @@ export function cadastrarProduto(db, dados) {
   const codigo = lerTexto(dados.codigo, 'o código do produto');
   const descricao = lerTexto(dados.descricao, 'a descrição do produto');
   const preco = paraCentavos(dados.preco);
-  const estoque = Number(dados.estoque);
+  const estoque = Number(lerTexto(dados.estoque, 'o estoque inicial'));
 
   if (!Number.isInteger(estoque) || estoque < 0) {
     throw new Error('Estoque deve ser um número inteiro maior ou igual a zero');
