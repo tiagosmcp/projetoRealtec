@@ -97,13 +97,16 @@ Aba Agente -> POST /api/agente -> processo agent/agente.js -> Gemini escolhe a a
 Travas que estão no código, e não só no prompt:
 
 - `navegar` só abre `/produtos`, `/pedidos` e `/pedidos/<identificador>`. Não abre `/api`, outros sites nem a aba Agente.
+- O código de um produto novo só é preenchido se estiver escrito na instrução do usuário.
 - Sem declarar o resultado esperado, o agente não preenche, não clica e não finaliza.
 - Sem ler o estoque na tela depois do último clique, o agente não finaliza.
 - O agente não importa nada de `server/`, não acessa o banco e não chama a API do sistema.
 
 ## Regras de negócio
 
-- Código de produto e identificador de pedido são únicos.
+- Código de produto e identificador de pedido são únicos, sem diferenciar maiúsculas de minúsculas.
+- A consulta de pedidos mostra itens, situação e total de cada um. Em rascunho, o total é o previsto pelos preços atuais.
+- Limites: preço até R$ 1.000.000,00, e quantidade e estoque até 1.000.000.
 - Quantidade é inteira e maior que zero. O estoque nunca fica negativo.
 - Em rascunho, os itens podem mudar e o estoque não é alterado.
 - Confirmar soma as quantidades por produto, confere tudo, congela os preços, calcula o total e baixa o estoque em uma transação. Se algo falha, nada muda.
@@ -120,6 +123,9 @@ Travas que estão no código, e não só no prompt:
 - **Identificador do pedido:** é digitado, e a tela sugere o próximo livre.
 - **Ajuste de estoque:** informa-se quanto somar, ou um número negativo para retirar.
 - **Remover item:** só em rascunho. Produtos e pedidos nunca são excluídos.
+- **Instrução incompleta:** o agente não inventa. Conclui "NÃO EXECUTADO" e diz o que falta (ex.: "cadastre um GABINETE" precisa de código, preço e estoque).
+- **Algo digitado e não salvo:** o pedido não é confirmado, e a tela avisa.
+- **Clique repetido:** cliques em botão com menos de meio segundo de intervalo são ignorados, e um envio idêntico ainda em andamento não é repetido.
 - **Cancelar pedido já cancelado:** o botão continua visível para a rejeição aparecer com o motivo.
 - **Preço:** aceita `25,00`, `25.00`, `1.770` e `1.770,00`.
 - **Ações em lote:** a IA pode preencher vários campos e clicar numa resposta só, para gastar menos cota.
@@ -129,7 +135,12 @@ Travas que estão no código, e não só no prompt:
 
 ## Cenários e resultados
 
-A execução de referência é a de **22/11/2026 às 14:39**: [registros/RELATORIO.md](registros/RELATORIO.md). Ela rodou numa cópia do projeto com banco próprio (o mesmo código, só com outras portas). O relatório compara o estoque lido na tela com o saldo correto, além de mostrar a conclusão do agente.
+Todas as execuções abaixo rodaram numa cópia do projeto com banco próprio (o mesmo código, só com outras portas).
+
+- **Último roteiro completo, 22/11/2026 às 14:39:** [registros/RELATORIO.md](registros/RELATORIO.md).
+- **Versão atual, 22/11/2026 às 15:48:** [relatório](registros/2026-11-22_18-54-22_RELATORIO.md). Os cenários 1 a 8 passaram. O 9 fez a operação, mas foi **interrompido pela cota diária gratuita (500 requisições)** antes de conferir. Ele foi [executado de novo sozinho](registros/2026-11-22_18-55-39_agente.md), a partir do mesmo estado e com o `gemini-3.1-flash-lite`, e passou.
+
+O relatório compara o estoque lido na tela com o saldo correto, além de mostrar a conclusão do agente.
 
 | # | Cenário | Esperado | Observado |
 |---|---|---|---|
@@ -164,6 +175,15 @@ Também foi testada pela aba Agente a instrução "Altere o preço do produto 99
 | 22/11 | `conclusão` com acento fazia o agente gastar os 40 passos | Nomes sem acento, e finalizar sempre encerra | Relato (2) |
 | 22/11 | Pedido inexistente ficava em "Carregando" | Mostra o motivo | Relato (2) |
 | 22/11 | Servidor desligado mostrava erro técnico em inglês | Mensagem em português | Relato (2) |
+| 22/11 | Agente inventou código, preço e estoque ("adicione um produto chamado GABINETE") | Regra de dados obrigatórios e trava do código | [antes](registros/2026-11-22_17-56-38_agente.md), [depois](registros/2026-11-22_18-47-12_agente.md) |
+| 22/11 | Com a primeira correção, recusava "um monitor", que é válido | Nome único basta | [registro](registros/2026-11-22_18-30-48_agente.md) |
+| 22/11 | Só com o prompt, voltou a inventar código | Trava no código | [registro](registros/2026-11-22_18-32-01_agente.md) |
+| 22/11 | Recusava "estoque para 2", que é válido | Saldo final é um comando completo | [registro](registros/2026-11-22_18-36-40_agente.md) |
+| 22/11 | Lista de pedidos sem itens e sem total de rascunho | Coluna de itens e total previsto | `server/regras.test.js` |
+| 22/11 | Códigos "abc" e "ABC" conviviam, e números enormes eram gravados corrompidos | Comparação sem maiúsculas e limites | `server/regras.test.js` |
+| 22/11 | Duplo clique adicionava em dobro, e confirmar ignorava quantidade digitada e não salva | Clique repetido ignorado e aviso antes de confirmar | Relato (2) |
+| 22/11 | Erro de estoque não dizia qual dos dois produtos "Mouse" | Mensagem inclui o código | Relato (2) |
+| 22/11 | Cota diária do modelo acabou no cenário 9 | Cenário repetido com outro modelo gratuito | [registro](registros/2026-11-22_18-52-36_cenario-09.md) |
 
 (2) Reproduzidas numa cópia de teste, durante a revisão de código, e testadas de novo depois da correção.
 
@@ -173,7 +193,8 @@ Também foi testada pela aba Agente a instrução "Altere o preço do produto 99
 
 - "Conforme" ou "Diferente" é a opinião da IA. Por isso o roteiro também compara o estoque lido na tela. Totais e mensagens devem ser conferidos no registro.
 - A proibição de contornar rejeições está no prompt, sem trava no código. Um modelo pode desobedecer.
-- A IA não é determinística: o número de passos varia. A execução de referência usou 60 requisições.
+- Não inventar preço, estoque e quantidade depende do prompt. A trava no código cobre só o código do produto.
+- A IA não é determinística: o número de passos varia. Um roteiro gasta cerca de 60 requisições, e o plano gratuito do `gemini-3.5-flash-lite` permite 500 por dia. Se acabar, troque `GEMINI_MODEL` no `.env` por `gemini-3.1-flash-lite`.
 - A trava de "um agente por vez" vale para a aba Agente. Não rode o roteiro junto com ela.
 - Se o processo do agente for encerrado à força, o registro fica como "Em andamento".
 - Os nomes dos arquivos de registro usam horário UTC. A data dentro do arquivo é a local.
