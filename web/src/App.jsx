@@ -41,7 +41,7 @@ export default function App() {
           <Route path="/produtos" element={<Produtos avisar={avisar} />} />
           <Route path="/pedidos" element={<Pedidos avisar={avisar} />} />
           <Route path="/pedidos/:id" element={<PedidoDetalhe avisar={avisar} />} />
-          <Route path="/agente" element={<Agente />} />
+          <Route path="/agente" element={<Agente avisar={avisar} />} />
         </Routes>
       </main>
     </div>

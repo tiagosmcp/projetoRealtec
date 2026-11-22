@@ -3,6 +3,9 @@
 
 export const ENDERECO_SITE = 'http://localhost:5173';
 
+// Únicas páginas que o agente pode abrir. Assim ele não acessa /api, outros sites nem a aba Agente.
+const PAGINAS_PERMITIDAS = /^\/(produtos|pedidos|pedidos\/[\p{L}\d_-]+)$/u;
+
 // Descrição das ferramentas no formato que a API do Gemini espera
 export const definicoes = [
   {
@@ -66,6 +69,9 @@ export async function executarFerramenta(pagina, nome, entrada) {
   }
 
   if (nome === 'navegar') {
+    if (!PAGINAS_PERMITIDAS.test(entrada.caminho)) {
+      throw new Error('Caminho não permitido. Use /produtos, /pedidos ou /pedidos/<identificador>.');
+    }
     await pagina.goto(ENDERECO_SITE + entrada.caminho);
     // Já devolve a tela nova, para a IA não precisar pedir ver_tela (economiza requisições)
     return `Página ${entrada.caminho} aberta.\n` + (await lerTela(pagina));
@@ -99,7 +105,8 @@ export async function executarFerramenta(pagina, nome, entrada) {
 
 // Localiza o elemento marcado pela última chamada de ver_tela
 function elemento(pagina, ref) {
-  return pagina.locator(`[data-ref="${ref}"]`);
+  // Number() garante que a IA só consiga apontar para uma referência numérica
+  return pagina.locator(`[data-ref="${Number(ref)}"]`);
 }
 
 // Espera a página carregar e o React buscar os dados
@@ -112,6 +119,19 @@ export async function mensagemDoTopo(pagina) {
   const mensagem = pagina.locator('.mensagem');
   if ((await mensagem.count()) === 0) return 'Nenhuma mensagem no topo.';
   return 'Mensagem no topo: ' + (await mensagem.first().innerText());
+}
+
+// Se a tela aberta for a de produtos, lê o estoque da tabela. Nas outras, devolve null.
+export async function lerEstoque(pagina) {
+  if (new URL(pagina.url()).pathname !== '/produtos') return null;
+  const linhas = await pagina.locator('main table tbody tr').evaluateAll((trs) =>
+    trs.map((tr) => ({
+      codigo: tr.cells[0].innerText.trim(),
+      descricao: tr.cells[1].innerText.trim(),
+      estoque: Number(tr.cells[3].innerText),
+    }))
+  );
+  return linhas.length > 0 ? linhas : null;
 }
 
 // Monta o texto da tela. Roda dentro do navegador (page.evaluate).
@@ -128,7 +148,7 @@ async function lerTela(pagina) {
     if (titulo) linhas.push('Título: ' + titulo.innerText);
 
     // Parágrafos de texto (ex.: situação e total do pedido)
-    for (const p of document.querySelectorAll('main > p')) {
+    for (const p of document.querySelectorAll('main p')) {
       linhas.push('Texto: ' + p.innerText);
     }
 
@@ -146,7 +166,9 @@ async function lerTela(pagina) {
     // Elementos interativos com número de referência
     linhas.push('Elementos interativos:');
     let numero = 0;
-    for (const el of document.querySelectorAll('nav a, main a, main input, main select, main button')) {
+    // A aba Agente fica de fora, para o agente não dar comandos para ele mesmo
+    const seletor = 'nav a:not([href="/agente"]), main a, main input, main select, main button';
+    for (const el of document.querySelectorAll(seletor)) {
       numero++;
       el.setAttribute('data-ref', numero);
       const contexto = descreverContexto(el);
