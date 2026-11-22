@@ -75,9 +75,22 @@ export default function Agente({ avisar }) {
             </li>
           ))}
         </ul>
-        {registro && <pre>{registro.conteudo}</pre>}
+        {registro && <Conteudo texto={registro.conteudo} />}
       </div>
     </>
+  );
+}
+
+// Mostra o .md de forma legível: "#" vira título e o resto vira parágrafo
+function Conteudo({ texto }) {
+  return (
+    <article className="registro">
+      {texto.split(/\r?\n/).map((linha, i) => {
+        if (linha.startsWith('# ')) return <h3 key={i}>{linha.slice(2)}</h3>;
+        if (linha.startsWith('## ')) return <h4 key={i}>{linha.slice(3)}</h4>;
+        return linha && <p key={i}>{linha.replaceAll('**', '')}</p>;
+      })}
+    </article>
   );
 }
 

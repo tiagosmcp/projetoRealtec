@@ -18,32 +18,36 @@ export default function App() {
   }
 
   return (
-    <div className="pagina">
+    <>
       <header>
-        <h1>Loja - Produtos e Pedidos</h1>
-        <nav>
-          <NavLink to="/produtos" onClick={limparMensagem}>Produtos</NavLink>
-          <NavLink to="/pedidos" onClick={limparMensagem}>Pedidos</NavLink>
-          <NavLink to="/agente" onClick={limparMensagem}>Agente</NavLink>
-        </nav>
+        <div className="topo">
+          <h1>Estoque e Pedidos</h1>
+          <nav>
+            <NavLink to="/produtos" onClick={limparMensagem}>Produtos</NavLink>
+            <NavLink to="/pedidos" onClick={limparMensagem}>Pedidos</NavLink>
+            <NavLink to="/agente" onClick={limparMensagem}>Agente</NavLink>
+          </nav>
+        </div>
       </header>
 
-      {mensagem && (
-        <div className={'mensagem ' + mensagem.tipo} role="alert">
-          {mensagem.tipo === 'erro' ? 'Erro: ' : 'Sucesso: '}
-          {mensagem.texto}
-        </div>
-      )}
+      <div className="pagina">
+        {mensagem && (
+          <div className={'mensagem ' + mensagem.tipo} role="alert">
+            {mensagem.tipo === 'erro' ? 'Erro: ' : 'Sucesso: '}
+            {mensagem.texto}
+          </div>
+        )}
 
-      <main>
-        <Routes>
-          <Route path="/" element={<Navigate to="/produtos" />} />
-          <Route path="/produtos" element={<Produtos avisar={avisar} />} />
-          <Route path="/pedidos" element={<Pedidos avisar={avisar} />} />
-          <Route path="/pedidos/:id" element={<PedidoDetalhe avisar={avisar} />} />
-          <Route path="/agente" element={<Agente avisar={avisar} />} />
-        </Routes>
-      </main>
-    </div>
+        <main>
+          <Routes>
+            <Route path="/" element={<Navigate to="/produtos" />} />
+            <Route path="/produtos" element={<Produtos avisar={avisar} />} />
+            <Route path="/pedidos" element={<Pedidos avisar={avisar} />} />
+            <Route path="/pedidos/:id" element={<PedidoDetalhe avisar={avisar} />} />
+            <Route path="/agente" element={<Agente avisar={avisar} />} />
+          </Routes>
+        </main>
+      </div>
+    </>
   );
 }

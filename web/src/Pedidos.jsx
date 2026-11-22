@@ -37,28 +37,30 @@ export default function Pedidos({ avisar }) {
     <>
       <h2>Pedidos</h2>
 
-      <form onSubmit={criar}>
+      <form className="em-linha" onSubmit={criar}>
         <h3>Novo pedido</h3>
         <label>Identificador do pedido <input value={identificador} onChange={(e) => setIdentificador(e.target.value)} /></label>
         <button type="submit">Criar pedido</button>
       </form>
 
-      <table>
-        <thead>
-          <tr><th>Identificador</th><th>Situação</th><th>Total</th><th></th></tr>
-        </thead>
-        <tbody>
-          {pedidos.map((p) => (
-            <tr key={p.identificador}>
-              <td>{p.identificador}</td>
-              <td>{p.situacao}</td>
-              <td>{formatarDinheiro(p.total)}</td>
-              <td><Link to={'/pedidos/' + encodeURIComponent(p.identificador)}>Ver pedido {p.identificador}</Link></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {pedidos.length === 0 && <p>Nenhum pedido cadastrado.</p>}
+      <div className="tabela">
+        <table>
+          <thead>
+            <tr><th>Identificador</th><th>Situação</th><th>Total</th><th></th></tr>
+          </thead>
+          <tbody>
+            {pedidos.map((p) => (
+              <tr key={p.identificador}>
+                <td>{p.identificador}</td>
+                <td><span className={'etiqueta ' + p.situacao}>{p.situacao}</span></td>
+                <td>{formatarDinheiro(p.total)}</td>
+                <td><Link to={'/pedidos/' + encodeURIComponent(p.identificador)}>Ver pedido {p.identificador}</Link></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {pedidos.length === 0 && <p className="vazio">Nenhum pedido cadastrado.</p>}
     </>
   );
 }

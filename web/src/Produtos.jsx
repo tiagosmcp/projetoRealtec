@@ -83,21 +83,23 @@ export default function Produtos({ avisar }) {
     <>
       <h2>Produtos</h2>
 
-      <table>
-        <thead>
-          <tr><th>Código</th><th>Descrição</th><th>Preço</th><th>Estoque</th></tr>
-        </thead>
-        <tbody>
-          {produtos.map((p) => (
-            <tr key={p.codigo}>
-              <td>{p.codigo}</td>
-              <td>{p.descricao}</td>
-              <td>{formatarDinheiro(p.preco)}</td>
-              <td>{p.estoque}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div className="tabela">
+        <table>
+          <thead>
+            <tr><th>Código</th><th>Descrição</th><th>Preço</th><th>Estoque</th></tr>
+          </thead>
+          <tbody>
+            {produtos.map((p) => (
+              <tr key={p.codigo}>
+                <td>{p.codigo}</td>
+                <td>{p.descricao}</td>
+                <td>{formatarDinheiro(p.preco)}</td>
+                <td>{p.estoque}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       <div className="formularios">
         <form onSubmit={cadastrar}>

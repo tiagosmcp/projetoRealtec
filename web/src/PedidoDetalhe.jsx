@@ -49,26 +49,30 @@ export default function PedidoDetalhe({ avisar }) {
   return (
     <>
       <h2>Pedido {pedido.identificador}</h2>
-      <p>Situação: <strong>{pedido.situacao}</strong></p>
-      <p>
-        {emRascunho ? 'Total previsto (preços atuais): ' : 'Total: '}
-        <strong>{formatarDinheiro(pedido.total)}</strong>
-      </p>
+      <div className="resumo">
+        <p>Situação: <strong className={'etiqueta ' + pedido.situacao}>{pedido.situacao}</strong></p>
+        <p>
+          {emRascunho ? 'Total previsto (preços atuais): ' : 'Total: '}
+          <strong>{formatarDinheiro(pedido.total)}</strong>
+        </p>
+      </div>
 
-      <table>
-        <thead>
-          <tr><th>Produto</th><th>Quantidade</th><th>Preço unitário</th><th>Subtotal</th>{emRascunho && <th>Ações</th>}</tr>
-        </thead>
-        <tbody>
-          {pedido.itens.map((item) => (
-            <LinhaDoItem key={item.id} item={item} emRascunho={emRascunho} caminhoDoPedido={caminho} executar={executar} />
-          ))}
-        </tbody>
-      </table>
-      {pedido.itens.length === 0 && <p>Nenhum item no pedido.</p>}
+      <div className="tabela">
+        <table>
+          <thead>
+            <tr><th>Produto</th><th>Quantidade</th><th>Preço unitário</th><th>Subtotal</th>{emRascunho && <th>Ações</th>}</tr>
+          </thead>
+          <tbody>
+            {pedido.itens.map((item) => (
+              <LinhaDoItem key={item.id} item={item} emRascunho={emRascunho} caminhoDoPedido={caminho} executar={executar} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {pedido.itens.length === 0 && <p className="vazio">Nenhum item no pedido.</p>}
 
       {emRascunho && (
-        <form onSubmit={adicionarItem}>
+        <form className="em-linha" onSubmit={adicionarItem}>
           <h3>Adicionar item</h3>
           <label>
             Produto
@@ -91,7 +95,7 @@ export default function PedidoDetalhe({ avisar }) {
           </button>
         )}
         {!emRascunho && (
-          <button onClick={() => executar(`${caminho}/cancelar`, 'POST', null, `Pedido ${id} cancelado`)}>
+          <button className="perigo" onClick={() => executar(`${caminho}/cancelar`, 'POST', null, `Pedido ${id} cancelado`)}>
             Cancelar pedido
           </button>
         )}
@@ -114,16 +118,18 @@ function LinhaDoItem({ item, emRascunho, caminhoDoPedido, executar }) {
       <td>{formatarDinheiro(item.subtotal)}</td>
       {emRascunho && (
         <td>
-          <label>
-            Nova quantidade de {item.descricao}
-            <input value={novaQuantidade} onChange={(e) => setNovaQuantidade(e.target.value)} />
-          </label>
-          <button onClick={() => executar(caminho, 'PUT', { quantidade: novaQuantidade }, 'Quantidade alterada')}>
-            Alterar quantidade
-          </button>
-          <button onClick={() => executar(caminho, 'DELETE', null, 'Item removido')}>
-            Remover item
-          </button>
+          <div className="acoes-do-item">
+            <label>
+              Nova quantidade de {item.descricao}
+              <input value={novaQuantidade} onChange={(e) => setNovaQuantidade(e.target.value)} />
+            </label>
+            <button className="secundario" onClick={() => executar(caminho, 'PUT', { quantidade: novaQuantidade }, 'Quantidade alterada')}>
+              Alterar quantidade
+            </button>
+            <button className="perigo" onClick={() => executar(caminho, 'DELETE', null, 'Item removido')}>
+              Remover item
+            </button>
+          </div>
         </td>
       )}
     </tr>
