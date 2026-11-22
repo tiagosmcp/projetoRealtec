@@ -123,12 +123,13 @@ Travas que estão no código, e não só no prompt:
 - **Cancelar pedido já cancelado:** o botão continua visível para a rejeição aparecer com o motivo.
 - **Preço:** aceita `25,00`, `25.00`, `1.770` e `1.770,00`.
 - **Ações em lote:** a IA pode preencher vários campos e clicar numa resposta só, para gastar menos cota.
-- **Campos digitados:** ficam no `sessionStorage` ao trocar de tela ou recarregar. São limpos quando o envio dá certo ou a aba é fechada, e continuam se o envio for rejeitado.
+- **Campos digitados:** ficam no `sessionStorage` ao trocar de tela ou recarregar. São limpos quando o envio dá certo, a aba é fechada ou o seed é executado (percebido ao trocar de tela ou apertar F5). Continuam se o envio for rejeitado.
+- **Edição de produto:** envia só o que foi digitado, para não desfazer uma mudança feita nesse meio-tempo.
 - **Só local:** não há login, e o servidor escuta apenas em `127.0.0.1`.
 
 ## Cenários e resultados
 
-A execução de referência é a de **22/11/2026**: [registros/RELATORIO.md](registros/RELATORIO.md). O relatório compara o estoque lido na tela com o saldo correto, além de mostrar a conclusão do agente.
+A execução de referência é a de **22/11/2026 às 14:39**: [registros/RELATORIO.md](registros/RELATORIO.md). Ela rodou numa cópia do projeto com banco próprio (o mesmo código, só com outras portas). O relatório compara o estoque lido na tela com o saldo correto, além de mostrar a conclusão do agente.
 
 | # | Cenário | Esperado | Observado |
 |---|---|---|---|
@@ -157,7 +158,14 @@ Também foi testada pela aba Agente a instrução "Altere o preço do produto 99
 | 20/11 | Um roteiro interrompido continuou em segundo plano e sobrescreveu o relatório | Relatórios agora também são salvos com data | [relatório](registros/2026-11-20_19-24-43_RELATORIO.md) |
 | 22/11 | `1.770` era lido como R$ 1,77; `0,001` e estoque vazio eram aceitos | Validação e testes | `server/regras.test.js` |
 | 22/11 | Agente concluiu sem declarar o resultado esperado | Declaração obrigatória no código | [registro](registros/2026-11-22_17-04-26_agente.md) |
-| 22/11 | Modelo enviou `opção` em vez de `opcao` e a seleção falhou 3 vezes no cenário 7 | A ferramenta aceita os dois nomes (corrigido depois da execução de referência) | [registro](registros/2026-11-22_17-09-59_cenario-07.md) |
+| 22/11 | Modelo enviou `opção` em vez de `opcao` e a seleção falhou 3 vezes no cenário 7 | Os nomes dos parâmetros são lidos sem acento | [registro](registros/2026-11-22_17-09-59_cenario-07.md) |
+| 22/11 | Edição de produto guardava o preço antigo e desfazia mudança feita pelo agente | Envia só o que foi digitado | `server/regras.test.js` |
+| 22/11 | Texto digitado sobrevivia ao seed e aparecia em outro item | O seed muda a versão do banco e a tela descarta o texto | Relato (2) |
+| 22/11 | `conclusão` com acento fazia o agente gastar os 40 passos | Nomes sem acento, e finalizar sempre encerra | Relato (2) |
+| 22/11 | Pedido inexistente ficava em "Carregando" | Mostra o motivo | Relato (2) |
+| 22/11 | Servidor desligado mostrava erro técnico em inglês | Mensagem em português | Relato (2) |
+
+(2) Reproduzidas numa cópia de teste, durante a revisão de código, e testadas de novo depois da correção.
 
 (1) Os arquivos dessas execuções foram apagados durante o desenvolvimento, antes de serem commitados. As linhas são um relato do que apareceu nelas, e não registros originais.
 
@@ -165,7 +173,7 @@ Também foi testada pela aba Agente a instrução "Altere o preço do produto 99
 
 - "Conforme" ou "Diferente" é a opinião da IA. Por isso o roteiro também compara o estoque lido na tela. Totais e mensagens devem ser conferidos no registro.
 - A proibição de contornar rejeições está no prompt, sem trava no código. Um modelo pode desobedecer.
-- A IA não é determinística: o número de passos varia. A execução de referência usou 69 requisições.
+- A IA não é determinística: o número de passos varia. A execução de referência usou 60 requisições.
 - A trava de "um agente por vez" vale para a aba Agente. Não rode o roteiro junto com ela.
 - Se o processo do agente for encerrado à força, o registro fica como "Em andamento".
 - Os nomes dos arquivos de registro usam horário UTC. A data dentro do arquivo é a local.
