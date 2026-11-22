@@ -1,16 +1,21 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { api, formatarDinheiro } from './util.js';
+import { api, formatarDinheiro, useCampoSalvo } from './util.js';
 
+// O key faz cada pedido ter os seus próprios campos ao ir de um pedido para outro
 export default function PedidoDetalhe({ avisar }) {
   const { id } = useParams();
+  return <Detalhe key={id} id={id} avisar={avisar} />;
+}
+
+function Detalhe({ id, avisar }) {
   const caminho = '/pedidos/' + encodeURIComponent(id); // o identificador é digitado e pode ter "/"
   const [pedido, setPedido] = useState(null);
   const [produtos, setProdutos] = useState([]);
 
   // Formulário de novo item
-  const [produto, setProduto] = useState('');
-  const [quantidade, setQuantidade] = useState('1');
+  const [produto, setProduto] = useCampoSalvo(`${caminho}.produto`);
+  const [quantidade, setQuantidade] = useCampoSalvo(`${caminho}.quantidade`, '1');
 
   async function carregar() {
     try {
@@ -25,19 +30,25 @@ export default function PedidoDetalhe({ avisar }) {
     carregar();
   }, [id]);
 
-  // Executa uma ação na API, mostra a mensagem e atualiza a tela
+  // Executa uma ação na API, mostra a mensagem e atualiza a tela. Devolve se deu certo.
   async function executar(caminho, metodo, corpo, textoSucesso) {
     try {
       setPedido(await api(caminho, metodo, corpo));
       avisar('sucesso', textoSucesso);
+      return true;
     } catch (erro) {
       avisar('erro', erro.message);
+      return false;
     }
   }
 
-  function adicionarItem(evento) {
+  async function adicionarItem(evento) {
     evento.preventDefault();
-    executar(`${caminho}/itens`, 'POST', { produto, quantidade }, 'Item adicionado ao pedido ' + id);
+    const deuCerto = await executar(`${caminho}/itens`, 'POST', { produto, quantidade }, 'Item adicionado ao pedido ' + id);
+    if (deuCerto) {
+      setProduto('');
+      setQuantidade('1');
+    }
   }
 
   if (!pedido) {
@@ -107,8 +118,18 @@ export default function PedidoDetalhe({ avisar }) {
 
 // Uma linha da tabela de itens. Em rascunho, permite alterar a quantidade ou remover.
 function LinhaDoItem({ item, emRascunho, caminhoDoPedido, executar }) {
-  const [novaQuantidade, setNovaQuantidade] = useState(String(item.quantidade));
   const caminho = `${caminhoDoPedido}/itens/${item.id}`;
+  // null = não digitou nada, então o campo mostra a quantidade atual do item
+  const [digitada, setDigitada] = useCampoSalvo(caminho, null);
+  const novaQuantidade = digitada ?? String(item.quantidade);
+
+  async function alterar() {
+    if (await executar(caminho, 'PUT', { quantidade: novaQuantidade }, 'Quantidade alterada')) setDigitada(null);
+  }
+
+  async function remover() {
+    if (await executar(caminho, 'DELETE', null, 'Item removido')) setDigitada(null);
+  }
 
   return (
     <tr>
@@ -121,12 +142,12 @@ function LinhaDoItem({ item, emRascunho, caminhoDoPedido, executar }) {
           <div className="acoes-do-item">
             <label>
               Nova quantidade de {item.descricao}
-              <input value={novaQuantidade} onChange={(e) => setNovaQuantidade(e.target.value)} />
+              <input value={novaQuantidade} onChange={(e) => setDigitada(e.target.value)} />
             </label>
-            <button className="secundario" onClick={() => executar(caminho, 'PUT', { quantidade: novaQuantidade }, 'Quantidade alterada')}>
+            <button className="secundario" onClick={alterar}>
               Alterar quantidade
             </button>
-            <button className="perigo" onClick={() => executar(caminho, 'DELETE', null, 'Item removido')}>
+            <button className="perigo" onClick={remover}>
               Remover item
             </button>
           </div>

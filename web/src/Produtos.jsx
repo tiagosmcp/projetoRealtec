@@ -1,23 +1,23 @@
 import { useEffect, useState } from 'react';
-import { api, formatarDinheiro, centavosParaTexto } from './util.js';
+import { api, formatarDinheiro, centavosParaTexto, useCampoSalvo } from './util.js';
 
 export default function Produtos({ avisar }) {
   const [produtos, setProdutos] = useState([]);
 
   // Formulário de cadastro
-  const [codigo, setCodigo] = useState('');
-  const [descricao, setDescricao] = useState('');
-  const [preco, setPreco] = useState('');
-  const [estoque, setEstoque] = useState('');
+  const [codigo, setCodigo] = useCampoSalvo('cadastro.codigo');
+  const [descricao, setDescricao] = useCampoSalvo('cadastro.descricao');
+  const [preco, setPreco] = useCampoSalvo('cadastro.preco');
+  const [estoque, setEstoque] = useCampoSalvo('cadastro.estoque');
 
   // Formulário de edição
-  const [codigoEdicao, setCodigoEdicao] = useState('');
-  const [descricaoEdicao, setDescricaoEdicao] = useState('');
-  const [precoEdicao, setPrecoEdicao] = useState('');
+  const [codigoEdicao, setCodigoEdicao] = useCampoSalvo('edicao.codigo');
+  const [descricaoEdicao, setDescricaoEdicao] = useCampoSalvo('edicao.descricao');
+  const [precoEdicao, setPrecoEdicao] = useCampoSalvo('edicao.preco');
 
   // Formulário de ajuste de estoque
-  const [codigoEstoque, setCodigoEstoque] = useState('');
-  const [ajuste, setAjuste] = useState('');
+  const [codigoEstoque, setCodigoEstoque] = useCampoSalvo('ajuste.codigo');
+  const [ajuste, setAjuste] = useCampoSalvo('ajuste.quantidade');
 
   async function carregar() {
     try {
@@ -60,6 +60,7 @@ export default function Produtos({ avisar }) {
       if (!codigoEdicao) throw new Error('Escolha o produto que será editado');
       const produto = await api('/produtos/' + encodeURIComponent(codigoEdicao), 'PUT', { descricao: descricaoEdicao, preco: precoEdicao });
       avisar('sucesso', `Produto ${produto.codigo} atualizado: ${produto.descricao}, ${formatarDinheiro(produto.preco)}`);
+      escolherParaEditar(''); // já salvou: limpa o formulário
       carregar();
     } catch (erro) {
       avisar('erro', erro.message);
@@ -72,6 +73,7 @@ export default function Produtos({ avisar }) {
       if (!codigoEstoque) throw new Error('Escolha o produto para ajustar o estoque');
       const produto = await api(`/produtos/${encodeURIComponent(codigoEstoque)}/estoque`, 'POST', { quantidade: ajuste });
       avisar('sucesso', `Estoque de ${produto.descricao} agora é ${produto.estoque}`);
+      setCodigoEstoque('');
       setAjuste('');
       carregar();
     } catch (erro) {

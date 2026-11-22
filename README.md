@@ -123,6 +123,7 @@ Travas que estão no código, e não só no prompt:
 - **Cancelar pedido já cancelado:** o botão continua visível para a rejeição aparecer com o motivo.
 - **Preço:** aceita `25,00`, `25.00`, `1.770` e `1.770,00`.
 - **Ações em lote:** a IA pode preencher vários campos e clicar numa resposta só, para gastar menos cota.
+- **Campos digitados:** ficam no `sessionStorage` ao trocar de tela ou recarregar. São limpos quando o envio dá certo ou a aba é fechada, e continuam se o envio for rejeitado.
 - **Só local:** não há login, e o servidor escuta apenas em `127.0.0.1`.
 
 ## Cenários e resultados

@@ -1,3 +1,20 @@
+import { useState } from 'react';
+
+// Igual ao useState, mas guarda o valor no sessionStorage do navegador.
+// Assim o que foi digitado continua lá ao trocar de tela ou recarregar (some ao fechar a aba).
+// Ao voltar para o valor inicial, apaga o que estava guardado.
+export function useCampoSalvo(chave, inicial = '') {
+  const [valor, setValor] = useState(() => sessionStorage.getItem(chave) ?? inicial);
+
+  function alterar(novo) {
+    setValor(novo);
+    if (novo === inicial) sessionStorage.removeItem(chave);
+    else sessionStorage.setItem(chave, novo);
+  }
+
+  return [valor, alterar];
+}
+
 // Chama a API. Se o servidor responder { erro }, lança um Error com essa mensagem.
 export async function api(caminho, metodo = 'GET', corpo) {
   const resposta = await fetch('/api' + caminho, {

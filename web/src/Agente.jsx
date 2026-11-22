@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { api } from './util.js';
+import { api, useCampoSalvo } from './util.js';
 
 const EXEMPLO = 'Ex.: Cancele o pedido 001 e confira o estoque.';
 
 // Envia instruções ao agente e mostra os registros (.md) da pasta registros/
 export default function Agente({ avisar }) {
-  const [comando, setComando] = useState('');
+  const [comando, setComando] = useCampoSalvo('agente.comando');
   const [executando, setExecutando] = useState(false);
   const [registros, setRegistros] = useState([]);
   const [escolhido, setEscolhido] = useState('');
