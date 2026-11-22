@@ -19,6 +19,10 @@ const CENARIOS = [
 ];
 
 async function principal() {
+  // Confere antes do seed, para não apagar o banco à toa
+  if (!process.env.GEMINI_API_KEY) {
+    throw new Error('Configure a GEMINI_API_KEY no arquivo .env (veja o README).');
+  }
   console.log('Recriando o banco com o seed...');
   execSync('npm run seed', { stdio: 'inherit' });
 

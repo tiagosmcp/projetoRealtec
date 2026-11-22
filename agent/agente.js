@@ -237,6 +237,7 @@ export function salvarRegistro(registro) {
 export async function abrirNavegador() {
   const navegador = await chromium.launch({ headless: false, slowMo: 400 });
   const pagina = await navegador.newPage();
+  pagina.setDefaultTimeout(10000); // uma referência errada falha em 10 s em vez de 30 s
   try {
     await pagina.goto(ENDERECO_SITE);
   } catch {

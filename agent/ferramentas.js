@@ -83,18 +83,22 @@ export async function executarFerramenta(pagina, nome, entrada) {
   }
 
   if (nome === 'preencher') {
+    if (entrada.valor === undefined) throw new Error('Informe o parâmetro "valor".');
     await elemento(pagina, entrada.ref).fill(String(entrada.valor));
     return `Campo [${entrada.ref}] preenchido com "${entrada.valor}".`;
   }
 
   if (nome === 'selecionar') {
+    // O modelo às vezes manda "opção" com acento no nome do parâmetro
+    const pedida = String(entrada.opcao ?? entrada['opção'] ?? '').trim();
+    if (!pedida) throw new Error('Informe o parâmetro "opcao".');
     const select = elemento(pagina, entrada.ref);
     // Procura a opção cujo texto contém o que a IA pediu (ex.: "Monitor" acha "103 - Monitor")
     const opcoes = await select.locator('option').allInnerTexts();
-    const opcao = opcoes.find((texto) => texto.trim() === entrada.opcao.trim())
-      || opcoes.find((texto) => texto.toLowerCase().includes(entrada.opcao.toLowerCase()));
+    const opcao = opcoes.find((texto) => texto.trim() === pedida)
+      || opcoes.find((texto) => texto.toLowerCase().includes(pedida.toLowerCase()));
     if (!opcao) {
-      throw new Error(`Opção "${entrada.opcao}" não encontrada. Opções: ${opcoes.join('; ')}`);
+      throw new Error(`Opção "${pedida}" não encontrada. Opções: ${opcoes.join('; ')}`);
     }
     await select.selectOption({ label: opcao });
     return `Opção "${opcao}" selecionada no select [${entrada.ref}].`;
