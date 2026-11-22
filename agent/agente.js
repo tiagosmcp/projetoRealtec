@@ -50,7 +50,6 @@ export function criarRegistro(comando, nome = 'agente') {
     requisicoes: 0,
     esperado: '',
     acoes: [],
-    mensagensVistas: [],
     conferiuEstoque: false,
     estoqueLido: null,
     observado: '',
@@ -66,70 +65,17 @@ export async function executarAgente(pagina, registro) {
     throw new Error('Configure a GEMINI_API_KEY no arquivo .env (veja o README).');
   }
 
-  // Espera até 1 minuto por resposta. Em erro temporário (429, 503), o SDK tenta de novo.
-  const ia = new GoogleGenAI({
-    apiKey: process.env.GEMINI_API_KEY,
-    httpOptions: { timeout: 60000, retryOptions: { attempts: 5 } },
-  });
-
-  // O chat guarda o histórico da conversa sozinho
-  const chat = ia.chats.create({
-    model: MODELO,
-    config: {
-      systemInstruction: INSTRUCOES,
-      tools: [{ functionDeclarations: definicoes }],
-    },
-  });
-
+  const chat = criarChat();
   let mensagem = registro.comando; // o que será enviado ao modelo no próximo passo
 
   try {
     for (let passo = 1; passo <= LIMITE_DE_PASSOS && !registro.conclusao; passo++) {
       if (pagina.isClosed()) throw new Error('o navegador foi fechado');
 
-      let resposta;
-      try {
-        resposta = await chat.sendMessage({ message: mensagem });
-      } catch (erro) {
-        registro.erroNaApi = true; // chave inválida, cota, servidor fora: o roteiro para
-        throw erro;
-      }
-      registro.requisicoes = passo;
-      const partes = resposta.candidates?.[0]?.content?.parts ?? [];
-
-      // Textos do modelo: o primeiro com "Resultado esperado" vira o resultado esperado
-      for (const parte of partes) {
-        if (!parte.text?.trim() || parte.thought) continue;
-        registro.acoes.push(`Agente pensou: ${parte.text.trim()}`);
-        if (!registro.esperado && parte.text.includes('Resultado esperado')) {
-          registro.esperado = parte.text.split('Resultado esperado:')[1]?.trim() || parte.text.trim();
-        }
-      }
-
-      salvarRegistro(registro);
-
-      const chamadas = resposta.functionCalls ?? [];
-      if (chamadas.length === 0) {
-        mensagem = 'Continue a tarefa e termine com a ferramenta finalizar.';
-        continue;
-      }
-
-      // Executa as ferramentas pedidas, na ordem, e devolve os resultados ao modelo no próximo passo
-      mensagem = [];
-      let loteEncerrado = false;
-      for (const chamada of chamadas) {
-        let resultado;
-        if (loteEncerrado) {
-          // A IA precisa ler o resultado de clicar, navegar, ver_tela ou de uma falha antes de continuar
-          resultado = 'Não executada: a tela mudou antes desta ação. Use as referências da tela nova.';
-        } else {
-          resultado = await executarUmaFerramenta(pagina, chamada, passo, registro);
-          loteEncerrado = ['clicar', 'navegar', 'ver_tela', 'finalizar'].includes(chamada.name)
-            || resultado.startsWith('Falha') || resultado.startsWith('Recusado');
-          salvarRegistro(registro);
-        }
-        mensagem.push({ functionResponse: { id: chamada.id, name: chamada.name, response: { resultado } } });
-      }
+      // O ciclo do agente: pergunta, anota, age e devolve o resultado na próxima pergunta
+      const resposta = await perguntarParaIA(chat, mensagem, registro);
+      anotarTextos(resposta, registro);
+      mensagem = await executarAcoes(pagina, resposta.functionCalls ?? [], passo, registro);
     }
 
     if (!registro.conclusao) {
@@ -144,9 +90,71 @@ export async function executarAgente(pagina, registro) {
   salvarRegistro(registro);
 }
 
+function criarChat() {
+  // Espera até 1 minuto por resposta. Em erro temporário (429, 503), o SDK tenta de novo.
+  const ia = new GoogleGenAI({
+    apiKey: process.env.GEMINI_API_KEY,
+    httpOptions: { timeout: 60000, retryOptions: { attempts: 5 } },
+  });
+
+  // O chat guarda o histórico da conversa sozinho
+  return ia.chats.create({
+    model: MODELO,
+    config: {
+      systemInstruction: INSTRUCOES,
+      tools: [{ functionDeclarations: definicoes }],
+    },
+  });
+}
+
+// 1. Envia a mensagem (o comando ou os resultados das ações) e devolve a resposta da IA
+async function perguntarParaIA(chat, mensagem, registro) {
+  try {
+    const resposta = await chat.sendMessage({ message: mensagem });
+    registro.requisicoes++;
+    return resposta;
+  } catch (erro) {
+    registro.erroNaApi = true; // chave inválida, cota, servidor fora: o roteiro para
+    throw erro;
+  }
+}
+
+// 2. Anota o que a IA escreveu. O primeiro "Resultado esperado" vira o resultado esperado
+function anotarTextos(resposta, registro) {
+  const partes = resposta.candidates?.[0]?.content?.parts ?? [];
+  for (const parte of partes) {
+    if (!parte.text?.trim() || parte.thought) continue;
+    registro.acoes.push(`Agente pensou: ${parte.text.trim()}`);
+    if (!registro.esperado && parte.text.includes('Resultado esperado')) {
+      registro.esperado = parte.text.split('Resultado esperado:')[1]?.trim() || parte.text.trim();
+    }
+  }
+  salvarRegistro(registro);
+}
+
+// 3. Executa as ações pedidas, na ordem, e devolve a próxima mensagem para a IA
+async function executarAcoes(pagina, chamadas, passo, registro) {
+  if (chamadas.length === 0) return 'Continue a tarefa e termine com a ferramenta finalizar.';
+
+  const resultados = [];
+  let loteEncerrado = false;
+  for (const chamada of chamadas) {
+    // Depois de clicar, navegar, ver_tela ou de uma falha, a IA precisa ler o resultado antes de continuar
+    let resultado = 'Não executada: a tela mudou antes desta ação. Use as referências da tela nova.';
+    if (!loteEncerrado) {
+      resultado = await executarUmaFerramenta(pagina, chamada, passo, registro);
+      loteEncerrado = ['clicar', 'navegar', 'ver_tela', 'finalizar'].includes(chamada.name)
+        || resultado.startsWith('Falha') || resultado.startsWith('Recusado');
+      salvarRegistro(registro);
+    }
+    resultados.push({ functionResponse: { id: chamada.id, name: chamada.name, response: { resultado } } });
+  }
+  return resultados;
+}
+
 // Executa uma chamada de ferramenta, anota no registro e devolve o texto do resultado
 async function executarUmaFerramenta(pagina, chamada, passo, registro) {
-  const entrada = chamada.args ?? {};
+  const entrada = semAcentoNosNomes(chamada.args ?? {});
 
   // Nada de agir nem de concluir sem ter dito antes o que era esperado
   if (!registro.esperado && !['ver_tela', 'navegar'].includes(chamada.name)) {
@@ -161,7 +169,8 @@ async function executarUmaFerramenta(pagina, chamada, passo, registro) {
       return 'Recusado: abra /produtos, confira o estoque e só então chame finalizar.';
     }
     registro.observado = entrada.resultado_observado;
-    registro.conclusao = entrada.conclusao;
+    // Sempre encerra: sem isso, uma conclusão vazia repetia até o limite de passos
+    registro.conclusao = entrada.conclusao || 'DIFERENTE DO ESPERADO: o agente finalizou sem informar a conclusão.';
     registro.acoes.push(`Passo ${passo}: finalizar`);
     return 'Tarefa encerrada.';
   }
@@ -175,11 +184,6 @@ async function executarUmaFerramenta(pagina, chamada, passo, registro) {
     const mensagem = await mensagemDoTopo(pagina);
     const resumo = chamada.name === 'preencher' || chamada.name === 'selecionar' ? texto : `${texto.split('\n')[0]} ${mensagem}`;
     registro.acoes.push(`Passo ${passo}: ${chamada.name} ${JSON.stringify(entrada)} → ${resumo}`);
-
-    // Guarda as mensagens do topo para o registro mostrar o que realmente apareceu
-    if (!registro.mensagensVistas.includes(mensagem) && !mensagem.startsWith('Nenhuma')) {
-      registro.mensagensVistas.push(mensagem);
-    }
 
     if (['ver_tela', 'navegar', 'clicar'].includes(chamada.name)) {
       const estoque = await lerEstoque(pagina);
@@ -195,8 +199,15 @@ async function executarUmaFerramenta(pagina, chamada, passo, registro) {
   }
 }
 
+// O modelo às vezes acentua o nome do parâmetro: "opção" vira "opcao", "conclusão" vira "conclusao"
+function semAcentoNosNomes(args) {
+  return Object.fromEntries(
+    Object.entries(args).map(([nome, valor]) => [nome.normalize('NFD').replace(/\p{M}/gu, ''), valor])
+  );
+}
+
 // Grava o registro em registros/. É chamada a cada ação, para dar para acompanhar ao vivo.
-export function salvarRegistro(registro) {
+function salvarRegistro(registro) {
   fs.mkdirSync(PASTA_REGISTROS, { recursive: true });
   const estoque = registro.estoqueLido?.map((p) => `- ${p.codigo} ${p.descricao}: ${p.estoque}`);
 
@@ -215,9 +226,6 @@ export function salvarRegistro(registro) {
     ``,
     `## Ações realizadas`,
     ...registro.acoes.map((acao, i) => `${i + 1}. ${acao}`),
-    ``,
-    `## Mensagens que apareceram no topo da tela`,
-    ...(registro.mensagensVistas.length ? registro.mensagensVistas.map((m) => `- ${m}`) : ['- nenhuma']),
     ``,
     `## Última leitura do estoque na tela`,
     ...(estoque ?? ['- ainda não lido']),

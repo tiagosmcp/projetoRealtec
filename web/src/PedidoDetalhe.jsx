@@ -12,6 +12,7 @@ function Detalhe({ id, avisar }) {
   const caminho = '/pedidos/' + encodeURIComponent(id); // o identificador é digitado e pode ter "/"
   const [pedido, setPedido] = useState(null);
   const [produtos, setProdutos] = useState([]);
+  const [falha, setFalha] = useState('');
 
   // Formulário de novo item
   const [produto, setProduto] = useCampoSalvo(`${caminho}.produto`);
@@ -22,6 +23,7 @@ function Detalhe({ id, avisar }) {
       setPedido(await api(caminho));
       setProdutos(await api('/produtos'));
     } catch (erro) {
+      setFalha(erro.message);
       avisar('erro', erro.message);
     }
   }
@@ -49,6 +51,16 @@ function Detalhe({ id, avisar }) {
       setProduto('');
       setQuantidade('1');
     }
+  }
+
+  if (!pedido && falha) {
+    return (
+      <>
+        <h2>Pedido {id}</h2>
+        <p className="vazio">{falha}</p>
+        <Link to="/pedidos">Voltar para a lista de pedidos</Link>
+      </>
+    );
   }
 
   if (!pedido) {

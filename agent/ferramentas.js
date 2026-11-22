@@ -89,8 +89,7 @@ export async function executarFerramenta(pagina, nome, entrada) {
   }
 
   if (nome === 'selecionar') {
-    // O modelo às vezes manda "opção" com acento no nome do parâmetro
-    const pedida = String(entrada.opcao ?? entrada['opção'] ?? '').trim();
+    const pedida = String(entrada.opcao ?? '').trim();
     if (!pedida) throw new Error('Informe o parâmetro "opcao".');
     const select = elemento(pagina, entrada.ref);
     // Procura a opção cujo texto contém o que a IA pediu (ex.: "Monitor" acha "103 - Monitor")

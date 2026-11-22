@@ -15,14 +15,32 @@ export function useCampoSalvo(chave, inicial = '') {
   return [valor, alterar];
 }
 
+// O seed muda a versão do banco. Se ela mudou, o que estava digitado era sobre dados que não existem mais.
+export async function descartarDigitadoSeBancoMudou() {
+  const versao = String((await api('/versao-do-banco')).versao);
+  const anterior = sessionStorage.getItem('versaoDoBanco');
+  if (anterior === versao) return;
+
+  if (anterior !== null) {
+    sessionStorage.clear();
+    window.location.reload();
+  }
+  sessionStorage.setItem('versaoDoBanco', versao);
+}
+
 // Chama a API. Se o servidor responder { erro }, lança um Error com essa mensagem.
 export async function api(caminho, metodo = 'GET', corpo) {
-  const resposta = await fetch('/api' + caminho, {
-    method: metodo,
-    headers: { 'Content-Type': 'application/json' },
-    body: corpo ? JSON.stringify(corpo) : undefined,
-  });
-  const dados = await resposta.json();
+  let resposta, dados;
+  try {
+    resposta = await fetch('/api' + caminho, {
+      method: metodo,
+      headers: { 'Content-Type': 'application/json' },
+      body: corpo ? JSON.stringify(corpo) : undefined,
+    });
+    dados = await resposta.json();
+  } catch {
+    throw new Error('Não consegui falar com o servidor. Confira se o "npm run dev" está rodando');
+  }
   if (!resposta.ok) {
     throw new Error(dados.erro);
   }

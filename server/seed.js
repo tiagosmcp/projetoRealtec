@@ -4,6 +4,9 @@ import { cadastrarProduto } from './regras.js';
 // Recria o banco do zero (apaga as tabelas e cria de novo).
 const db = abrirBanco();
 db.exec('DROP TABLE IF EXISTS itens; DROP TABLE IF EXISTS pedidos; DROP TABLE IF EXISTS produtos;');
+// Muda a versão do banco, para a tela descartar o que estava digitado sobre os dados antigos
+const versao = db.pragma('user_version', { simple: true });
+db.pragma(`user_version = ${versao + 1}`);
 db.close();
 
 const novoDb = abrirBanco();

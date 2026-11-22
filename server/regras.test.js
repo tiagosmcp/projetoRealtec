@@ -79,6 +79,13 @@ describe('regras', () => {
       .toThrow('Informe o estoque inicial');
   });
 
+  it('editar só a descrição não mexe no preço', () => {
+    regras.editarProduto(db, '102', { descricao: 'Teclado', preco: '155,00' }); // outra pessoa mudou o preço
+    const produto = regras.editarProduto(db, '102', { descricao: 'Teclado ABNT', preco: null });
+    expect(produto.preco).toBe(15500);
+    expect(produto.descricao).toBe('Teclado ABNT');
+  });
+
   it('rejeita quantidade zero', () => {
     regras.criarPedido(db, '001');
     expect(() => regras.adicionarItem(db, '001', '101', 0)).toThrow('Quantidade deve ser maior que zero');

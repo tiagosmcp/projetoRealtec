@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { descartarDigitadoSeBancoMudou } from './util.js';
 import Produtos from './Produtos.jsx';
 import Pedidos from './Pedidos.jsx';
 import PedidoDetalhe from './PedidoDetalhe.jsx';
@@ -8,6 +9,13 @@ import Agente from './Agente.jsx';
 export default function App() {
   // Mensagem de sucesso ou erro mostrada no topo: { tipo: 'sucesso' | 'erro', texto }
   const [mensagem, setMensagem] = useState(null);
+
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    // Se o servidor estiver fora, quem mostra o erro é a própria tela
+    descartarDigitadoSeBancoMudou().catch(() => {});
+  }, [pathname]);
 
   function avisar(tipo, texto) {
     setMensagem({ tipo, texto });

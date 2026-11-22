@@ -12,8 +12,12 @@ export default function Produtos({ avisar }) {
 
   // Formulário de edição
   const [codigoEdicao, setCodigoEdicao] = useCampoSalvo('edicao.codigo');
-  const [descricaoEdicao, setDescricaoEdicao] = useCampoSalvo('edicao.descricao');
-  const [precoEdicao, setPrecoEdicao] = useCampoSalvo('edicao.preco');
+  // Guarda só o que foi digitado. null = não mexeu, então vale o valor atual do produto
+  const [descricaoDigitada, setDescricaoDigitada] = useCampoSalvo('edicao.descricaoDigitada', null);
+  const [precoDigitado, setPrecoDigitado] = useCampoSalvo('edicao.precoDigitado', null);
+  const emEdicao = produtos.find((p) => p.codigo === codigoEdicao);
+  const descricaoEdicao = descricaoDigitada ?? emEdicao?.descricao ?? '';
+  const precoEdicao = precoDigitado ?? (emEdicao ? centavosParaTexto(emEdicao.preco) : '');
 
   // Formulário de ajuste de estoque
   const [codigoEstoque, setCodigoEstoque] = useCampoSalvo('ajuste.codigo');
@@ -46,19 +50,18 @@ export default function Produtos({ avisar }) {
     }
   }
 
-  // Ao escolher o produto para editar, preenche os campos com os dados atuais
+  // Ao trocar de produto, esquece o que foi digitado para o anterior
   function escolherParaEditar(codigoEscolhido) {
     setCodigoEdicao(codigoEscolhido);
-    const produto = produtos.find((p) => p.codigo === codigoEscolhido);
-    setDescricaoEdicao(produto ? produto.descricao : '');
-    setPrecoEdicao(produto ? centavosParaTexto(produto.preco) : '');
+    setDescricaoDigitada(null);
+    setPrecoDigitado(null);
   }
 
   async function salvarEdicao(evento) {
     evento.preventDefault();
     try {
       if (!codigoEdicao) throw new Error('Escolha o produto que será editado');
-      const produto = await api('/produtos/' + encodeURIComponent(codigoEdicao), 'PUT', { descricao: descricaoEdicao, preco: precoEdicao });
+      const produto = await api('/produtos/' + encodeURIComponent(codigoEdicao), 'PUT', { descricao: descricaoDigitada, preco: precoDigitado });
       avisar('sucesso', `Produto ${produto.codigo} atualizado: ${produto.descricao}, ${formatarDinheiro(produto.preco)}`);
       escolherParaEditar(''); // já salvou: limpa o formulário
       carregar();
@@ -124,8 +127,8 @@ export default function Produtos({ avisar }) {
               ))}
             </select>
           </label>
-          <label>Nova descrição <input value={descricaoEdicao} onChange={(e) => setDescricaoEdicao(e.target.value)} /></label>
-          <label>Novo preço (R$) <input value={precoEdicao} onChange={(e) => setPrecoEdicao(e.target.value)} /></label>
+          <label>Nova descrição <input value={descricaoEdicao} onChange={(e) => setDescricaoDigitada(e.target.value)} /></label>
+          <label>Novo preço (R$) <input value={precoEdicao} onChange={(e) => setPrecoDigitado(e.target.value)} /></label>
           <button type="submit">Salvar alterações</button>
         </form>
 

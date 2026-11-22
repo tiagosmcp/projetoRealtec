@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import path from 'node:path';
 
 // Caminho padrão do banco: server/loja.db
-export const ARQUIVO_BANCO = path.join(import.meta.dirname, 'loja.db');
+const ARQUIVO_BANCO = path.join(import.meta.dirname, 'loja.db');
 
 // Abre o banco e cria as tabelas se ainda não existirem.
 // Nos testes usamos ':memory:' (banco em memória).

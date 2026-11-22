@@ -9,6 +9,11 @@ const db = abrirBanco();
 const app = express();
 app.use(express.json());
 
+// Muda a cada seed
+app.get('/api/versao-do-banco', (req, res) => {
+  res.json({ versao: db.pragma('user_version', { simple: true }) });
+});
+
 // ---------- Produtos ----------
 app.get('/api/produtos', (req, res) => {
   res.json(regras.listarProdutos(db));

@@ -77,10 +77,11 @@ export function cadastrarProduto(db, dados) {
 }
 
 // Edita só descrição e preço. Pedidos já confirmados guardaram o preço antigo.
+// O que não for enviado (null) fica como está no banco.
 export function editarProduto(db, codigo, dados) {
-  buscarProduto(db, codigo);
-  const descricao = lerTexto(dados.descricao, 'a descrição do produto');
-  const preco = paraCentavos(dados.preco);
+  const atual = buscarProduto(db, codigo);
+  const descricao = lerTexto(dados.descricao ?? atual.descricao, 'a descrição do produto');
+  const preco = dados.preco == null ? atual.preco : paraCentavos(dados.preco);
 
   db.prepare('UPDATE produtos SET descricao = ?, preco = ? WHERE codigo = ?')
     .run(descricao, preco, codigo);
