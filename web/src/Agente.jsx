@@ -105,6 +105,7 @@ function lerSecao(conteudo, titulo) {
 function Resultado({ conteudo }) {
   const conclusao = lerSecao(conteudo, 'Conclusão').toUpperCase();
   if (conclusao.startsWith('CONFORME')) return <span className="etiqueta verde">Conforme</span>;
+  if (conclusao.startsWith('NÃO EXECUTADO')) return <span className="etiqueta amarela">Não executado</span>;
   if (conclusao.startsWith('EM ANDAMENTO')) return <span className="etiqueta amarela">Em andamento</span>;
   if (conclusao) return <span className="etiqueta vermelha">Diferente</span>;
   return null;

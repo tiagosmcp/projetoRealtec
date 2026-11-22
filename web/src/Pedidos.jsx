@@ -50,14 +50,15 @@ export default function Pedidos({ avisar }) {
       <div className="tabela">
         <table>
           <thead>
-            <tr><th>Identificador</th><th>Situação</th><th>Total</th><th></th></tr>
+            <tr><th>Identificador</th><th>Itens</th><th>Situação</th><th>Total</th><th></th></tr>
           </thead>
           <tbody>
             {pedidos.map((p) => (
               <tr key={p.identificador}>
                 <td>{p.identificador}</td>
+                <td className="itens">{descreverItens(p.itens)}</td>
                 <td><span className={'etiqueta ' + p.situacao}>{p.situacao}</span></td>
-                <td>{formatarDinheiro(p.total)}</td>
+                <td>{formatarDinheiro(p.total)}{p.situacao === 'RASCUNHO' && ' (previsto)'}</td>
                 <td><Link to={'/pedidos/' + encodeURIComponent(p.identificador)}>Ver pedido {p.identificador}</Link></td>
               </tr>
             ))}
@@ -67,4 +68,10 @@ export default function Pedidos({ avisar }) {
       {pedidos.length === 0 && <p className="vazio">Nenhum pedido cadastrado.</p>}
     </>
   );
+}
+
+// "2x 103 - Monitor, 1x 102 - Teclado"
+function descreverItens(itens) {
+  if (itens.length === 0) return 'Sem itens';
+  return itens.map((item) => `${item.quantidade}x ${item.produto} - ${item.descricao}`).join(', ');
 }

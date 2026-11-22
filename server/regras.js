@@ -2,6 +2,10 @@
 // Cada função recebe o banco (db) como primeiro parâmetro.
 // Quando algo é rejeitado, lançamos um Error com a mensagem que vai para a tela.
 
+// Limites para número absurdo não ser gravado corrompido
+const PRECO_MAXIMO = 1000000; // em reais
+const UNIDADES_MAXIMO = 1000000;
+
 // ---------- Validações simples ----------
 
 // Converte "25,00", "25.00", "R$ 1.770,00" ou 25 para centavos (2500).
@@ -19,6 +23,9 @@ export function paraCentavos(valor) {
   if (numero <= 0) {
     throw new Error('Preço deve ser maior que zero');
   }
+  if (numero > PRECO_MAXIMO) {
+    throw new Error('Preço deve ser no máximo R$ 1.000.000,00');
+  }
   return Math.round(numero * 100);
 }
 
@@ -30,7 +37,21 @@ function lerQuantidade(valor) {
   if (quantidade <= 0) {
     throw new Error('Quantidade deve ser maior que zero');
   }
+  if (quantidade > UNIDADES_MAXIMO) {
+    throw new Error('Quantidade deve ser no máximo 1.000.000');
+  }
   return quantidade;
+}
+
+function conferirLimiteDoEstoque(estoque) {
+  if (estoque > UNIDADES_MAXIMO) {
+    throw new Error('Estoque deve ser no máximo 1.000.000');
+  }
+}
+
+// "abc" e "ABC" contam como o mesmo código
+function mesmoCodigo(a, b) {
+  return a.toLowerCase() === b.toLowerCase();
 }
 
 function lerTexto(valor, nomeDoCampo) {
@@ -65,10 +86,12 @@ export function cadastrarProduto(db, dados) {
     throw new Error('Estoque deve ser um número inteiro maior ou igual a zero');
   }
 
-  // Código do produto é único
-  const existente = db.prepare('SELECT codigo FROM produtos WHERE codigo = ?').get(codigo);
+  conferirLimiteDoEstoque(estoque);
+
+  // Código do produto é único, sem diferenciar maiúsculas de minúsculas
+  const existente = listarProdutos(db).find((p) => mesmoCodigo(p.codigo, codigo));
   if (existente) {
-    throw new Error(`Já existe um produto com o código ${codigo}`);
+    throw new Error(`Já existe um produto com o código ${existente.codigo}`);
   }
 
   db.prepare('INSERT INTO produtos (codigo, descricao, preco, estoque) VALUES (?, ?, ?, ?)')
@@ -99,8 +122,9 @@ export function ajustarEstoque(db, codigo, quantidade) {
 
   const novoEstoque = produto.estoque + ajuste;
   if (novoEstoque < 0) {
-    throw new Error(`Estoque não pode ficar negativo: ${produto.descricao} tem ${produto.estoque}`);
+    throw new Error(`Estoque não pode ficar negativo: ${produto.descricao} tem ${produto.estoque} (código ${produto.codigo})`);
   }
+  conferirLimiteDoEstoque(novoEstoque);
 
   db.prepare('UPDATE produtos SET estoque = ? WHERE codigo = ?').run(novoEstoque, codigo);
   return buscarProduto(db, codigo);
@@ -108,8 +132,10 @@ export function ajustarEstoque(db, codigo, quantidade) {
 
 // ---------- Pedidos ----------
 
+// Cada pedido da lista vem com itens, situação e total (previsto, se for rascunho)
 export function listarPedidos(db) {
-  return db.prepare('SELECT * FROM pedidos ORDER BY identificador').all();
+  const pedidos = db.prepare('SELECT identificador FROM pedidos ORDER BY identificador').all();
+  return pedidos.map((pedido) => buscarPedido(db, pedido.identificador));
 }
 
 // Sugere o próximo identificador livre: "001", "002", ...
@@ -124,9 +150,11 @@ export function sugerirIdentificador(db) {
 export function criarPedido(db, identificadorDigitado) {
   const identificador = lerTexto(identificadorDigitado, 'o identificador do pedido');
 
-  const existente = db.prepare('SELECT 1 FROM pedidos WHERE identificador = ?').get(identificador);
+  // Identificador é único, sem diferenciar maiúsculas de minúsculas
+  const existente = db.prepare('SELECT identificador FROM pedidos').all()
+    .find((p) => mesmoCodigo(p.identificador, identificador));
   if (existente) {
-    throw new Error(`Já existe um pedido com o identificador ${identificador}`);
+    throw new Error(`Já existe um pedido com o identificador ${existente.identificador}`);
   }
 
   db.prepare("INSERT INTO pedidos (identificador, situacao) VALUES (?, 'RASCUNHO')").run(identificador);
@@ -228,7 +256,7 @@ export function confirmarPedido(db, identificador) {
       const produto = buscarProduto(db, codigo);
       const solicitado = quantidadePorProduto[codigo];
       if (solicitado > produto.estoque) {
-        throw new Error(`Estoque insuficiente para ${produto.descricao}: solicitado ${solicitado}, disponível ${produto.estoque}`);
+        throw new Error(`Estoque insuficiente para ${produto.descricao}: solicitado ${solicitado}, disponível ${produto.estoque} (código ${codigo})`);
       }
     }
 

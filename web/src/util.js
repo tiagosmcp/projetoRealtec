@@ -28,8 +28,22 @@ export async function descartarDigitadoSeBancoMudou() {
   sessionStorage.setItem('versaoDoBanco', versao);
 }
 
-// Chama a API. Se o servidor responder { erro }, lança um Error com essa mensagem.
-export async function api(caminho, metodo = 'GET', corpo) {
+const enviosEmAndamento = new Map();
+
+// Chama a API. Se o mesmo envio ainda está em andamento, espera por ele em vez de enviar de novo.
+export function api(caminho, metodo = 'GET', corpo) {
+  if (metodo === 'GET') return chamarServidor(caminho, metodo);
+
+  const chave = metodo + caminho + JSON.stringify(corpo);
+  if (!enviosEmAndamento.has(chave)) {
+    const envio = chamarServidor(caminho, metodo, corpo).finally(() => enviosEmAndamento.delete(chave));
+    enviosEmAndamento.set(chave, envio);
+  }
+  return enviosEmAndamento.get(chave);
+}
+
+// Se o servidor responder { erro }, lança um Error com essa mensagem.
+async function chamarServidor(caminho, metodo, corpo) {
   let resposta, dados;
   try {
     resposta = await fetch('/api' + caminho, {

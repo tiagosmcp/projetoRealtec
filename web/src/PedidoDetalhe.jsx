@@ -53,6 +53,23 @@ function Detalhe({ id, avisar }) {
     }
   }
 
+  // Não deixa confirmar se algo digitado ainda não foi salvo no pedido
+  function confirmar() {
+    const naoSalvo = pedido.itens.find((item) => {
+      const digitada = sessionStorage.getItem(`${caminho}/itens/${item.id}`);
+      return digitada !== null && digitada !== String(item.quantidade);
+    });
+    if (naoSalvo) {
+      avisar('erro', `A nova quantidade de ${naoSalvo.descricao} não foi salva. Clique em "Alterar quantidade" ou volte para ${naoSalvo.quantidade} antes de confirmar`);
+      return;
+    }
+    if (produto) {
+      avisar('erro', 'O produto escolhido ainda não foi adicionado. Clique em "Adicionar item" ou volte para "Escolha..." antes de confirmar');
+      return;
+    }
+    executar(`${caminho}/confirmar`, 'POST', null, `Pedido ${id} confirmado`);
+  }
+
   if (!pedido && falha) {
     return (
       <>
@@ -113,7 +130,7 @@ function Detalhe({ id, avisar }) {
 
       <div className="acoes">
         {emRascunho && (
-          <button onClick={() => executar(`${caminho}/confirmar`, 'POST', null, `Pedido ${id} confirmado`)}>
+          <button onClick={confirmar}>
             Confirmar pedido
           </button>
         )}

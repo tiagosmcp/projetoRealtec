@@ -22,6 +22,17 @@ Regras do sistema (use para prever o resultado esperado):
 - Mudar o preço de um produto não altera pedidos já confirmados.
 - Se o comando não informar o identificador do pedido, use o identificador sugerido na tela de novo pedido.
 
+NUNCA INVENTE DADOS. Antes de agir, confira se o comando traz o que a operação precisa:
+- Cadastrar produto: código, descrição (o nome do produto serve), preço e estoque. Não crie código, preço nem estoque por conta própria, e não copie de outro produto. Estoque não informado NÃO é zero.
+- Editar produto: qual produto e o novo valor do que vai mudar.
+- Ajustar estoque: qual produto e quanto somar, retirar ou qual deve ser o saldo final. "estoque para 2" é um comando completo: 2 é o saldo final, e você calcula a diferença pelo estoque da tela para digitar no campo de somar.
+- Criar pedido com itens, ou adicionar item: o produto e a quantidade de cada um. "um mouse" é quantidade 1. "monitores", sem número, é quantidade não informada.
+- Alterar, confirmar ou cancelar pedido: qual pedido. Não escolha um por conta própria, mesmo que só exista um.
+- Ao CADASTRAR, o código é sempre obrigatório: o nome não substitui o código.
+- Fora do cadastro, o nome basta para identificar um produto que já existe, sem código, no singular ou plural: "um monitor" é o Monitor da lista. Só há dúvida se a lista tiver mais de um produto com esse nome (ex.: dois "Mouse"). Aí não escolha: peça o código.
+- Pedido novo não precisa de identificador no comando: use o sugerido na tela.
+Se faltar ou houver dúvida em qualquer um desses dados, NÃO preencha nem clique em nada e não faça parte da tarefa. Escreva "Resultado esperado: não executar, falta ...", abra /produtos e finalize com a conclusão começando com "NÃO EXECUTADO:", dizendo exatamente o que o usuário precisa informar. Nesse caso nunca use "CONFORME O ESPERADO".
+
 Como trabalhar:
 1. ANTES de alterar qualquer dado, escreva uma linha começando com "Resultado esperado:" com o resultado FINAL da tarefa. Para prever, aplique as regras acima aos dados que aparecem na tela (estoque atual, códigos e pedidos que já existem). Se uma regra vai rejeitar a operação, o resultado esperado é a rejeição. Se o comando for só de consulta, escreva essa linha já na primeira resposta, dizendo o que a consulta deve mostrar. Sem essa linha, preencher, selecionar, clicar e finalizar são recusados.
 2. navegar e clicar já devolvem a tela nova com as referências [ref]. Use ver_tela só se precisar ler a tela de novo.
@@ -179,7 +190,7 @@ async function executarUmaFerramenta(pagina, chamada, passo, registro) {
   if (chamada.name === 'clicar') registro.conferiuEstoque = false;
 
   try {
-    const texto = await executarFerramenta(pagina, chamada.name, entrada);
+    const texto = await executarFerramenta(pagina, chamada.name, entrada, registro.comando);
     // Para o registro, um resumo curto: a primeira linha do resultado e a mensagem do topo
     const mensagem = await mensagemDoTopo(pagina);
     const resumo = chamada.name === 'preencher' || chamada.name === 'selecionar' ? texto : `${texto.split('\n')[0]} ${mensagem}`;

@@ -86,6 +86,30 @@ describe('regras', () => {
     expect(produto.descricao).toBe('Teclado ABNT');
   });
 
+  it('lista os pedidos com itens, situação e total, inclusive rascunho', () => {
+    regras.criarPedido(db, '001');
+    regras.adicionarItem(db, '001', '103', 2);
+    const [pedido] = regras.listarPedidos(db);
+    expect(pedido.situacao).toBe('RASCUNHO');
+    expect(pedido.total).toBe(160000);
+    expect(pedido.itens[0].descricao).toBe('Monitor');
+  });
+
+  it('não diferencia maiúsculas de minúsculas no código e no identificador', () => {
+    regras.cadastrarProduto(db, { codigo: 'abc', descricao: 'A', preco: '1', estoque: 1 });
+    expect(() => regras.cadastrarProduto(db, { codigo: 'ABC', descricao: 'B', preco: '1', estoque: 1 })).toThrow('Já existe');
+    regras.criarPedido(db, 'ped-a');
+    expect(() => regras.criarPedido(db, 'PED-A')).toThrow('Já existe');
+  });
+
+  it('rejeita números grandes demais', () => {
+    expect(() => regras.paraCentavos('9'.repeat(400))).toThrow('no máximo');
+    expect(() => regras.cadastrarProduto(db, { codigo: '9', descricao: 'X', preco: '1', estoque: '1000001' })).toThrow('no máximo');
+    expect(() => regras.ajustarEstoque(db, '101', 1000000)).toThrow('no máximo');
+    regras.criarPedido(db, '001');
+    expect(() => regras.adicionarItem(db, '001', '101', 1000001)).toThrow('no máximo');
+  });
+
   it('rejeita quantidade zero', () => {
     regras.criarPedido(db, '001');
     expect(() => regras.adicionarItem(db, '001', '101', 0)).toThrow('Quantidade deve ser maior que zero');

@@ -55,7 +55,7 @@ export const definicoes = [
       type: 'object',
       properties: {
         resultado_observado: { type: 'string', description: 'O que apareceu de fato na tela, com valores e mensagens.' },
-        conclusao: { type: 'string', description: 'Começa com "CONFORME O ESPERADO" ou "DIFERENTE DO ESPERADO", seguido da explicação.' },
+        conclusao: { type: 'string', description: 'Começa com "CONFORME O ESPERADO", "DIFERENTE DO ESPERADO" ou "NÃO EXECUTADO" (quando faltam dados no comando), seguido da explicação.' },
       },
       required: ['resultado_observado', 'conclusao'],
     },
@@ -63,7 +63,7 @@ export const definicoes = [
 ];
 
 // Executa uma ferramenta e devolve um texto para a IA ler
-export async function executarFerramenta(pagina, nome, entrada) {
+export async function executarFerramenta(pagina, nome, entrada, comando = '') {
   if (nome === 'ver_tela') {
     return await lerTela(pagina);
   }
@@ -84,7 +84,13 @@ export async function executarFerramenta(pagina, nome, entrada) {
 
   if (nome === 'preencher') {
     if (entrada.valor === undefined) throw new Error('Informe o parâmetro "valor".');
-    await elemento(pagina, entrada.ref).fill(String(entrada.valor));
+    const campo = elemento(pagina, entrada.ref);
+    const nomeDoCampo = await campo.evaluate((el) => el.closest('label')?.innerText.trim());
+    // Trava: o código de um produto novo tem que ter sido escrito pelo usuário
+    if (nomeDoCampo === 'Código' && !estaNoComando(entrada.valor, comando)) {
+      throw new Error(`O usuário não informou o código "${entrada.valor}". Não invente outro: finalize com NÃO EXECUTADO pedindo o código.`);
+    }
+    await campo.fill(String(entrada.valor));
     return `Campo [${entrada.ref}] preenchido com "${entrada.valor}".`;
   }
 
@@ -104,6 +110,12 @@ export async function executarFerramenta(pagina, nome, entrada) {
   }
 
   throw new Error(`Ferramenta desconhecida: ${nome}`);
+}
+
+// Procura o valor como palavra inteira: "10" não vale se o comando diz "104"
+function estaNoComando(valor, comando) {
+  const limparTexto = (texto) => ` ${String(texto).toLowerCase().replace(/[\s,;:"'()!?]+|\.(?=\s|$)/g, ' ').trim()} `;
+  return limparTexto(valor).trim() !== '' && limparTexto(comando).includes(limparTexto(valor));
 }
 
 // Localiza o elemento marcado pela última chamada de ver_tela

@@ -181,6 +181,11 @@ tbody tr:last-child td {
   border-bottom: 0;
 }
 
+td.itens {
+  min-width: 240px;
+  white-space: normal;
+}
+
 .resumo {
   display: flex;
   flex-wrap: wrap;
