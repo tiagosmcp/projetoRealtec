@@ -137,8 +137,8 @@ Travas que estão no código, e não só no prompt:
 
 Todas as execuções abaixo rodaram numa cópia do projeto com banco próprio (o mesmo código, só com outras portas).
 
-- **Último roteiro completo, 22/11/2026 às 14:39:** [registros/RELATORIO.md](registros/RELATORIO.md).
-- **Versão atual, 22/11/2026 às 15:48:** [relatório](registros/2026-11-22_18-54-22_RELATORIO.md). Os cenários 1 a 8 passaram. O 9 fez a operação, mas foi **interrompido pela cota diária gratuita (500 requisições)** antes de conferir. Ele foi [executado de novo sozinho](registros/2026-11-22_18-55-39_agente.md), a partir do mesmo estado e com o `gemini-3.1-flash-lite`, e passou.
+- **Versão final, 23/11/2026 às 22:33:** [registros/RELATORIO.md](registros/RELATORIO.md). Os **9 cenários passaram** em 55 requisições, sem nenhuma falha de ferramenta.
+- **Execução anterior, 22/11/2026 às 15:48:** [relatório](registros/2026-11-22_18-54-22_RELATORIO.md). Os cenários 1 a 8 passaram. O 9 fez a operação, mas foi **interrompido pela cota diária gratuita (500 requisições)** antes de conferir. Ele foi [executado de novo sozinho](registros/2026-11-22_18-55-39_agente.md), a partir do mesmo estado e com o `gemini-3.1-flash-lite`, e passou.
 
 O relatório compara o estoque lido na tela com o saldo correto, além de mostrar a conclusão do agente.
 
@@ -153,6 +153,8 @@ O relatório compara o estoque lido na tela com o saldo correto, além de mostra
 | 7 | Pedido de 4 monitores | Rejeitado | "solicitado 4, disponível 3"; Monitor 3 |
 | 8 | **Extra, inválido:** código 101 repetido | Rejeitado | "Já existe um produto com o código 101" |
 | 9 | **Extra:** pedido 004 com preço editado | Cabo a R$ 30,00 | R$ 150,00; Cabo 5, Teclado 6 |
+
+Os registros de 22/11 às 14:16 e 14:57 são testes livres feitos pela aba Agente, como "altere o preço do teclado para 155 e o estoque para 2".
 
 Também foi testada pela aba Agente a instrução "Altere o preço do produto 999 para R$ 10,00". O agente registrou que o produto não existe e concluiu "DIFERENTE DO ESPERADO", sem alterar nada ([registro](registros/2026-11-22_17-11-59_agente.md)).
 
