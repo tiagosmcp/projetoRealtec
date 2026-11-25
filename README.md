@@ -98,6 +98,7 @@ Travas que estão no código, e não só no prompt:
 
 - `navegar` só abre `/produtos`, `/pedidos` e `/pedidos/<identificador>`. Não abre `/api`, outros sites nem a aba Agente.
 - O código de um produto novo só é preenchido se estiver escrito na instrução do usuário.
+- Se a instrução pede uma operação (cadastrar, criar, confirmar, cancelar, alterar...) e nenhum botão clicado nesta execução mostrou sucesso ou erro, o agente não pode concluir "CONFORME". O que já estava na tela antes não conta como trabalho dele.
 - Sem declarar o resultado esperado, o agente não preenche, não clica e não finaliza.
 - Sem ler o estoque na tela depois do último clique, o agente não finaliza.
 - O agente não importa nada de `server/`, não acessa o banco e não chama a API do sistema.
@@ -137,7 +138,8 @@ Travas que estão no código, e não só no prompt:
 
 Todas as execuções abaixo rodaram numa cópia do projeto com banco próprio (o mesmo código, só com outras portas).
 
-- **Versão final, 23/11/2026 às 22:33:** [registros/RELATORIO.md](registros/RELATORIO.md). Os **9 cenários passaram** em 55 requisições, sem nenhuma falha de ferramenta.
+- **Versão final, 24/11/2026 às 23:09:** [relatório](registros/2026-11-25_02-12-15_RELATORIO.md). Os cenários 1 a 8 passaram. O 9 fez a operação, mas parou no **limite por minuto** do plano gratuito (15 requisições). As esperas entre tentativas foram aumentadas, e o cenário 9 foi [executado de novo](registros/2026-11-25_02-13-56_agente.md), a partir do mesmo estado, e passou.
+- **Último roteiro inteiro sem interrupção, 23/11/2026 às 22:33:** [registros/RELATORIO.md](registros/RELATORIO.md). Os 9 cenários passaram, com a versão anterior à trava de operação não feita.
 - **Execução anterior, 22/11/2026 às 15:48:** [relatório](registros/2026-11-22_18-54-22_RELATORIO.md). Os cenários 1 a 8 passaram. O 9 fez a operação, mas foi **interrompido pela cota diária gratuita (500 requisições)** antes de conferir. Ele foi [executado de novo sozinho](registros/2026-11-22_18-55-39_agente.md), a partir do mesmo estado e com o `gemini-3.1-flash-lite`, e passou.
 
 O relatório compara o estoque lido na tela com o saldo correto, além de mostrar a conclusão do agente.
@@ -185,6 +187,9 @@ Também foi testada pela aba Agente a instrução "Altere o preço do produto 99
 | 22/11 | Códigos "abc" e "ABC" conviviam, e números enormes eram gravados corrompidos | Comparação sem maiúsculas e limites | `server/regras.test.js` |
 | 22/11 | Duplo clique adicionava em dobro, e confirmar ignorava quantidade digitada e não salva | Clique repetido ignorado e aviso antes de confirmar | Relato (2) |
 | 22/11 | Erro de estoque não dizia qual dos dois produtos "Mouse" | Mensagem inclui o código | Relato (2) |
+| 24/11 | Com o produto 104 já cadastrado, o agente viu ele na lista, **não clicou em nada e disse que tinha cadastrado** | Prompt manda tentar e relatar a rejeição; trava impede "CONFORME" sem operação feita | [antes](registros/2026-11-25_01-50-23_agente.md) |
+| 24/11 | Só com o prompt, ainda dizia em metade das vezes que o pedido 001 "já estava criado", sem tentar | Exemplo explícito e a trava acima. Depois disso, 18 de 18 corretos | Relato (2) |
+| 24/11 | Limite por minuto interrompeu o cenário 9 | Esperas de 5 a 60 segundos entre tentativas | [registro](registros/2026-11-25_02-11-37_cenario-09.md) |
 | 22/11 | Cota diária do modelo acabou no cenário 9 | Cenário repetido com outro modelo gratuito | [registro](registros/2026-11-22_18-52-36_cenario-09.md) |
 
 (2) Reproduzidas numa cópia de teste, durante a revisão de código, e testadas de novo depois da correção.
@@ -195,6 +200,7 @@ Também foi testada pela aba Agente a instrução "Altere o preço do produto 99
 
 - "Conforme" ou "Diferente" é a opinião da IA. Por isso o roteiro também compara o estoque lido na tela. Totais e mensagens devem ser conferidos no registro.
 - A proibição de contornar rejeições está no prompt, sem trava no código. Um modelo pode desobedecer.
+- A trava de "operação não feita" decide pelo verbo da instrução. Consultas como "confira" e "pedidos confirmados" não contam como operação, mas uma frase muito diferente pode ser classificada errado.
 - Não inventar preço, estoque e quantidade depende do prompt. A trava no código cobre só o código do produto.
 - A IA não é determinística: o número de passos varia. Um roteiro gasta cerca de 60 requisições, e o plano gratuito do `gemini-3.5-flash-lite` permite 500 por dia. Se acabar, troque `GEMINI_MODEL` no `.env` por `gemini-3.1-flash-lite`.
 - A trava de "um agente por vez" vale para a aba Agente. Não rode o roteiro junto com ela.

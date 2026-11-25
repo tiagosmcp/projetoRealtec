@@ -78,8 +78,11 @@ export async function executarFerramenta(pagina, nome, entrada, comando = '') {
   }
 
   if (nome === 'clicar') {
-    await elemento(pagina, entrada.ref).click();
-    return 'Clique feito. Tela depois do clique:\n' + (await lerTela(pagina));
+    const alvo = elemento(pagina, entrada.ref);
+    const ehLink = (await alvo.evaluate((el) => el.tagName)) === 'A';
+    await alvo.click();
+    // "Botão clicado" indica que uma operação foi enviada; link só troca de tela
+    return (ehLink ? 'Link aberto' : 'Botão clicado') + '. Tela depois do clique:\n' + (await lerTela(pagina));
   }
 
   if (nome === 'preencher') {

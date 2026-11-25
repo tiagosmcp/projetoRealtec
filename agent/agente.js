@@ -41,6 +41,11 @@ Como trabalhar:
 5. Antes de finalizar, confira itens, situação e total no detalhe do pedido (se houver pedido) e, POR ÚLTIMO, abra /produtos para conferir o estoque. Faça isso também quando a operação for rejeitada: finalizar é recusado sem essa conferência.
 6. Termine SEMPRE com a ferramenta finalizar.
 
+Faça a operação NESTA execução:
+- O que já estava na tela antes de você agir é de antes. Nunca diga que algo "foi cadastrado", "foi criado", "foi confirmado" ou "foi cancelado" sem ter clicado, agora, no botão que faz isso e visto a mensagem de sucesso.
+- Se o que o comando pede parece já existir (ex.: código ou identificador já cadastrado), o resultado esperado é a REJEIÇÃO. Tente mesmo assim, preenchendo e clicando no botão, para a mensagem do sistema aparecer, e relate essa mensagem. Exemplos: produto 104 já na lista: preencha o cadastro com 104 e clique em "Cadastrar produto". Pedido 001 já na lista: em /pedidos, troque o identificador sugerido por 001 e clique em "Criar pedido". Nos dois casos a mensagem "Já existe..." é o resultado, e não continue a tarefa depois dela.
+- Só não clique quando a tela não tiver o botão para aquela operação (ex.: pedido já confirmado não tem "Confirmar pedido"). Aí relate o que a tela mostra.
+
 Faça SOMENTE o que o comando pede:
 - NUNCA faça operações extras para contornar uma rejeição (ex.: ajustar estoque, editar produto, usar outro código ou outro pedido).
 - Se o sistema rejeitar uma operação, não tente de novo: confira a tela de consulta e finalize relatando a rejeição.
@@ -62,6 +67,7 @@ export function criarRegistro(comando, nome = 'agente') {
     esperado: '',
     acoes: [],
     conferiuEstoque: false,
+    viuResultado: false, // algum botão clicado nesta execução mostrou sucesso ou erro
     estoqueLido: null,
     observado: '',
     conclusao: '',
@@ -102,10 +108,11 @@ export async function executarAgente(pagina, registro) {
 }
 
 function criarChat() {
-  // Espera até 1 minuto por resposta. Em erro temporário (429, 503), o SDK tenta de novo.
+  // Espera até 1 minuto por resposta. Em erro temporário (429, 503), o SDK tenta de novo,
+  // esperando 5, 10, 20, 40 e 60 segundos: o plano gratuito limita as requisições por minuto.
   const ia = new GoogleGenAI({
     apiKey: process.env.GEMINI_API_KEY,
-    httpOptions: { timeout: 60000, retryOptions: { attempts: 5 } },
+    httpOptions: { timeout: 60000, retryOptions: { attempts: 6, initialDelay: 5 } },
   });
 
   // O chat guarda o histórico da conversa sozinho
@@ -179,6 +186,11 @@ async function executarUmaFerramenta(pagina, chamada, passo, registro) {
       registro.acoes.push(`Passo ${passo}: finalizar recusado (falta conferir o estoque)`);
       return 'Recusado: abra /produtos, confira o estoque e só então chame finalizar.';
     }
+    // Não aceita "deu certo" numa operação que não foi tentada agora (o que já estava na tela é de antes)
+    if (pedeOperacao(registro.comando) && !registro.viuResultado && String(entrada.conclusao).startsWith('CONFORME')) {
+      registro.acoes.push(`Passo ${passo}: finalizar recusado (nenhuma operação foi feita nesta execução)`);
+      return 'Recusado: nenhum botão desta execução mostrou sucesso ou erro. Faça a operação pelo botão para o sistema responder. Se a tela não tiver o botão, finalize com "NÃO EXECUTADO" e explique.';
+    }
     registro.observado = entrada.resultado_observado;
     // Sempre encerra: sem isso, uma conclusão vazia repetia até o limite de passos
     registro.conclusao = entrada.conclusao || 'DIFERENTE DO ESPERADO: o agente finalizou sem informar a conclusão.';
@@ -195,6 +207,9 @@ async function executarUmaFerramenta(pagina, chamada, passo, registro) {
     const mensagem = await mensagemDoTopo(pagina);
     const resumo = chamada.name === 'preencher' || chamada.name === 'selecionar' ? texto : `${texto.split('\n')[0]} ${mensagem}`;
     registro.acoes.push(`Passo ${passo}: ${chamada.name} ${JSON.stringify(entrada)} → ${resumo}`);
+    if (texto.startsWith('Botão clicado') && /^Mensagem no topo: (Sucesso|Erro)/.test(mensagem)) {
+      registro.viuResultado = true;
+    }
 
     if (['ver_tela', 'navegar', 'clicar'].includes(chamada.name)) {
       const estoque = await lerEstoque(pagina);
@@ -210,11 +225,19 @@ async function executarUmaFerramenta(pagina, chamada, passo, registro) {
   }
 }
 
+function semAcento(texto) {
+  return texto.normalize('NFD').replace(/\p{M}/gu, '');
+}
+
 // O modelo às vezes acentua o nome do parâmetro: "opção" vira "opcao", "conclusão" vira "conclusao"
 function semAcentoNosNomes(args) {
-  return Object.fromEntries(
-    Object.entries(args).map(([nome, valor]) => [nome.normalize('NFD').replace(/\p{M}/gu, ''), valor])
-  );
+  return Object.fromEntries(Object.entries(args).map(([nome, valor]) => [semAcento(nome), valor]));
+}
+
+// A instrução pede para mudar algo? Consulta não conta: "confira", "pedidos confirmados"
+function pedeOperacao(comando) {
+  const verbo = /\b(cadastr|cri[ae]|registr|confirm|cancel|alter|ajust|adicion|inclu|remov|exclu|edit|mud|coloq|atualiz|troqu|troc)(?!ad[oa]s?\b|id[oa]s?\b)/;
+  return verbo.test(semAcento(comando.toLowerCase()));
 }
 
 // Grava o registro em registros/. É chamada a cada ação, para dar para acompanhar ao vivo.
