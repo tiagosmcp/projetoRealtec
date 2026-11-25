@@ -2,7 +2,7 @@
 
 Teste técnico: um sistema web de produtos, pedidos e estoque, com um agente de IA que recebe instruções em português e opera o sistema **pela tela**, como uma pessoa.
 
-**Vídeo:** LINK_DO_VIDEO
+**Vídeo de demonstração:** https://drive.google.com/file/d/1cDLlkjcjNXY5s7LPaKsy7dnAO2JnW7wf/view?usp=sharing
 
 ## Tecnologias
 
